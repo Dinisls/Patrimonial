@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Patrimonial/Assets.xcassets/AppIcon.appiconset/Gemini_Generated_Image_hpzkgzhpzkgzhpzk.png" width="120" alt="Patrimonial Icon" />
+  <img src="Patrimonial/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="120" alt="Patrimonial Icon" />
 </p>
 
 <h1 align="center">Patrimonial</h1>
