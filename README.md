@@ -5,8 +5,8 @@
 <h1 align="center">Patrimonial</h1>
 
 <p align="center">
-  <strong>Gestão financeira pessoal para iOS</strong><br/>
-  Contas · Transações · Investimentos · Câmbio em tempo real
+  <strong>Personal finance management for iOS</strong><br/>
+  Accounts · Transactions · Investments · Real-time market data
 </p>
 
 <p align="center">
@@ -16,6 +16,270 @@
   <img src="https://img.shields.io/badge/Data-SwiftData-green" />
   <img src="https://img.shields.io/badge/License-Private-lightgrey" />
 </p>
+
+<p align="center">
+  <a href="#about">English</a> · <a href="#sobre">Português</a>
+</p>
+
+---
+
+## About
+
+**Patrimonial** is a native iOS app for personal finance and investment management. Built entirely with **SwiftUI** and **SwiftData**, it lets you manage bank accounts, track transactions, follow an investment portfolio with real-time quotes, and visualize cash flow in a centralized dashboard.
+
+---
+
+## Features
+
+### Dashboard
+- Net worth overview
+- Account cards with real-time balances
+- Monthly cash flow chart (income vs. expenses)
+- Recent transactions with quick edit
+- Balance trend over time
+
+### Accounts
+- Create and manage accounts: **Checking**, **Savings**, **Credit Card**, **Brokerage**
+- Customizable icon and color per account
+- Multi-currency support (EUR default)
+- Balance auto-calculated from transactions
+- Account detail with full history
+
+### Transactions
+- Supported types: **Expense**, **Income**, **Transfer**, **Asset Purchase**, **Asset Sale**, **Dividend**
+- Built-in categories: food, transport, rent, health, leisure, subscriptions, etc.
+- Custom categories
+- Inter-account transfers with bidirectional tracking
+- Dedicated forms per operation type
+
+### Investment Portfolio
+- Asset search by symbol (stocks, ETFs, crypto)
+- Position tracking with average cost and quantity
+- Real-time quotes with freshness indicator
+- Daily and period variation (1D, 1W, 1M, 3M, 6M, 1Y, YTD)
+- Portfolio evolution chart with historical candles
+- Allocation by asset class, sector, and currency
+- Watchlist for tracking assets without positions
+- Manual asset entry for unlisted assets
+- Realized and unrealized P&L calculation
+
+### Market Data
+- **6 providers** with automatic fallback:
+
+  | Provider | Data |
+  |----------|------|
+  | **Yahoo Finance** | Quotes, historical candles |
+  | **TwelveData** | Quotes, time series, search |
+  | **Finnhub** | Quotes, candles |
+  | **Alpha Vantage** | Intraday/daily time series |
+  | **CoinGecko** | Crypto prices, search, candles |
+  | **Frankfurter** | Foreign exchange rates (FX) |
+
+- Market calendar with holidays (NYSE, Euronext, Xetra, LSE)
+- Market sessions with adaptive polling windows
+- Per-provider rate limiter with daily budget
+- GBp → GBP normalization across all boundaries
+- Local cache for candles, crypto quotes, and FX rates (SwiftData)
+
+### Design System
+- Light and dark theme with manual toggle and `@AppStorage`
+- Reusable components: `Card`, `PrimaryButton`, `EmptyState`
+- Centralized color palette and typography (`PBTheme`)
+- Native iOS layout with `NavigationStack` and `TabView`
+
+---
+
+## Architecture
+
+```
+Patrimonial/
+├── Models/                     # @Model SwiftData (Account, Asset, FinancialTransaction, ...)
+├── Core/
+│   ├── MarketData/
+│   │   ├── Config/             # AppConfig (reads Secrets.plist)
+│   │   ├── Models/             # Quote, FXRate, AssetSearchResult
+│   │   ├── Providers/          # Yahoo, TwelveData, Finnhub, AlphaVantage, CoinGecko, Frankfurter
+│   │   ├── PriceStore.swift    # In-memory cache + adaptive polling
+│   │   ├── CandleStore.swift   # Historical candles with exchange routing
+│   │   ├── MarketCalendar.swift# Sessions, holidays, freshness
+│   │   └── RateLimiter.swift   # Per-provider rate limiting
+│   ├── Portfolio/
+│   │   ├── PortfolioCalculator # Holdings, P&L, market value, allocation
+│   │   ├── ListingID           # Unique identity (symbol + MIC)
+│   │   ├── Holding             # Calculated position with cost basis
+│   │   └── PortfolioAllocation # Slices by class/sector/currency
+│   ├── Persistence/            # PersistenceController, DataReset
+│   ├── Formatters/             # CurrencyFormatter
+│   └── Networking/             # Generic NetworkClient
+├── Features/
+│   ├── Dashboard/              # DashboardScreen, CashFlowDetail, BalanceTrend
+│   ├── Accounts/               # AccountsView, AccountDetail, AccountForm
+│   ├── Transactions/           # TransactionsView, TransactionForm, TransferForm
+│   ├── Portfolio/              # PortfolioScreen, AssetDetail, Watchlist, Search
+│   └── Settings/               # SettingsView (theme, data reset)
+├── Redesign/                   # PB* — new design system (5 tabs)
+│   ├── PBRoot.swift            # Root TabView
+│   ├── PBDashboard.swift       # Dashboard screen
+│   ├── PBComponents.swift      # Reusable components
+│   ├── PBTheme.swift           # Colors, fonts, spacing
+│   ├── PBCharts.swift          # Charts
+│   └── PBStore.swift           # AppStore (@Observable)
+└── DesignSystem/               # Color and font extensions
+```
+
+```
+PatrimonialTests/               # ~40 test files
+├── Fixtures/                   # JSON fixtures (Yahoo, Finnhub, TwelveData, CoinGecko, AlphaVantage)
+├── *ProviderTests.swift        # Per-provider tests
+├── PortfolioCalculatorTests.swift
+├── ListingIdentityTests.swift
+├── MarketCalendarTests.swift
+└── ...
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **UI** | SwiftUI |
+| **Persistence** | SwiftData (`@Model`, `ModelContainer`) |
+| **State** | `@Observable`, `@State`, `@Environment` |
+| **Networking** | Native `URLSession` (no external dependencies) |
+| **Charts** | Swift Charts |
+| **Localization** | `Localizable.xcstrings` (PT/EN) |
+| **Testing** | XCTest (~40 test files, JSON fixtures) |
+| **External dependencies** | **None** — 100% Apple frameworks |
+
+---
+
+## Requirements
+
+- **iOS 17.0+**
+- **Xcode 15.0+**
+- **Swift 5.9+**
+
+---
+
+## Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/Dinisls/Patrimonial.git
+cd Patrimonial
+```
+
+### 2. Configure API keys
+
+The app uses a `Secrets.plist` file (excluded from git) for API keys. Create the file at:
+
+```
+Patrimonial/Resources/Secrets.plist
+```
+
+With the following structure:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>ALPHAVANTAGE_API_KEY</key>
+    <string>YOUR_KEY_HERE</string>
+    <key>FINNHUB_API_KEY</key>
+    <string>YOUR_KEY_HERE</string>
+    <key>TWELVEDATA_API_KEY</key>
+    <string>YOUR_KEY_HERE</string>
+</dict>
+</plist>
+```
+
+> CoinGecko, Yahoo Finance, and Frankfurter APIs do not require a key.
+
+### 3. Build and run
+
+```bash
+open Patrimonial.xcodeproj
+```
+
+Select an iOS 17+ simulator or device and run (⌘R).
+
+---
+
+## Testing
+
+```bash
+xcodebuild test \
+  -scheme Patrimonial \
+  -destination 'platform=iOS Simulator,name=iPhone 16' \
+  -resultBundlePath TestResults
+```
+
+The test suite includes ~40 test files covering:
+- Market data providers (with JSON fixtures)
+- Portfolio calculator (holdings, P&L, allocation)
+- Listing identity (symbol + MIC)
+- Market calendar and sessions
+- Search and result ranking
+- Data reset
+- Unpriced positions
+
+---
+
+## Data Model
+
+```mermaid
+erDiagram
+    Account ||--o{ FinancialTransaction : "source"
+    Account ||--o{ FinancialTransaction : "destination"
+    Asset ||--o{ FinancialTransaction : "linked"
+    Asset ||--o{ PriceSnapshot : "snapshots"
+    Asset ||--o{ PortfolioSnapshot : "history"
+    
+    Account {
+        UUID id
+        String name
+        AccountType type
+        String currency
+        String icon
+        String colorHex
+    }
+    
+    FinancialTransaction {
+        UUID id
+        Decimal amount
+        TransactionType type
+        TransactionCategory category
+        Date date
+        String notes
+    }
+    
+    Asset {
+        UUID id
+        String symbol
+        String name
+        AssetClass assetClass
+        String exchange
+        String currency
+        Bool isWatchlisted
+    }
+```
+
+---
+
+## License
+
+Private project. All rights reserved.
+
+---
+
+<br/>
+<br/>
+
+<h1 align="center">🇵🇹 Português</h1>
 
 ---
 
@@ -85,80 +349,7 @@
 
 ---
 
-## Arquitetura
-
-```
-Patrimonial/
-├── Models/                     # @Model SwiftData (Account, Asset, FinancialTransaction, ...)
-├── Core/
-│   ├── MarketData/
-│   │   ├── Config/             # AppConfig (lê Secrets.plist)
-│   │   ├── Models/             # Quote, FXRate, AssetSearchResult
-│   │   ├── Providers/          # Yahoo, TwelveData, Finnhub, AlphaVantage, CoinGecko, Frankfurter
-│   │   ├── PriceStore.swift    # Cache em memória + polling adaptativo
-│   │   ├── CandleStore.swift   # Candles históricas com routing por exchange
-│   │   ├── MarketCalendar.swift# Sessões, feriados, frescura
-│   │   └── RateLimiter.swift   # Rate limiting por provedor
-│   ├── Portfolio/
-│   │   ├── PortfolioCalculator # Holdings, P&L, market value, alocação
-│   │   ├── ListingID           # Identidade inequívoca (symbol + MIC)
-│   │   ├── Holding             # Posição calculada com custo base
-│   │   └── PortfolioAllocation # Slices por classe/setor/moeda
-│   ├── Persistence/            # PersistenceController, DataReset
-│   ├── Formatters/             # CurrencyFormatter
-│   └── Networking/             # NetworkClient genérico
-├── Features/
-│   ├── Dashboard/              # DashboardScreen, CashFlowDetail, BalanceTrend
-│   ├── Accounts/               # AccountsView, AccountDetail, AccountForm
-│   ├── Transactions/           # TransactionsView, TransactionForm, TransferForm
-│   ├── Portfolio/              # PortfolioScreen, AssetDetail, Watchlist, Search
-│   └── Settings/               # SettingsView (tema, reset de dados)
-├── Redesign/                   # PB* — novo design system (5 tabs)
-│   ├── PBRoot.swift            # TabView raiz
-│   ├── PBDashboard.swift       # Ecrã Resumo
-│   ├── PBComponents.swift      # Componentes reutilizáveis
-│   ├── PBTheme.swift           # Cores, fontes, espaçamento
-│   ├── PBCharts.swift          # Gráficos
-│   └── PBStore.swift           # AppStore (@Observable)
-└── DesignSystem/               # Extensões de cor e fonte
-```
-
-```
-PatrimonialTests/               # ~40 ficheiros de teste
-├── Fixtures/                   # JSON fixtures (Yahoo, Finnhub, TwelveData, CoinGecko, AlphaVantage)
-├── *ProviderTests.swift        # Testes por provedor
-├── PortfolioCalculatorTests.swift
-├── ListingIdentityTests.swift
-├── MarketCalendarTests.swift
-└── ...
-```
-
----
-
-## Stack Tecnológica
-
-| Camada | Tecnologia |
-|--------|-----------|
-| **UI** | SwiftUI |
-| **Persistência** | SwiftData (`@Model`, `ModelContainer`) |
-| **Estado** | `@Observable`, `@State`, `@Environment` |
-| **Rede** | `URLSession` nativo (sem dependências externas) |
-| **Gráficos** | Swift Charts |
-| **Localização** | `Localizable.xcstrings` (PT/EN) |
-| **Testes** | XCTest (~40 test files, fixtures JSON) |
-| **Dependências externas** | **Nenhuma** — 100% Apple frameworks |
-
----
-
-## Requisitos
-
-- **iOS 17.0+**
-- **Xcode 15.0+**
-- **Swift 5.9+**
-
----
-
-## Instalação
+## Começar
 
 ### 1. Clonar o repositório
 
@@ -225,53 +416,6 @@ A suite inclui ~40 ficheiros de teste cobrindo:
 
 ---
 
-## Estrutura de Dados
-
-```mermaid
-erDiagram
-    Account ||--o{ FinancialTransaction : "source"
-    Account ||--o{ FinancialTransaction : "destination"
-    Asset ||--o{ FinancialTransaction : "linked"
-    Asset ||--o{ PriceSnapshot : "snapshots"
-    Asset ||--o{ PortfolioSnapshot : "history"
-    
-    Account {
-        UUID id
-        String name
-        AccountType type
-        String currency
-        String icon
-        String colorHex
-    }
-    
-    FinancialTransaction {
-        UUID id
-        Decimal amount
-        TransactionType type
-        TransactionCategory category
-        Date date
-        String notes
-    }
-    
-    Asset {
-        UUID id
-        String symbol
-        String name
-        AssetClass assetClass
-        String exchange
-        String currency
-        Bool isWatchlisted
-    }
-```
-
----
-
-## Licença
-
-Projeto privado. Todos os direitos reservados.
-
----
-
 <p align="center">
-  Feito com SwiftUI em Portugal 🇵🇹
+  Made with SwiftUI in Portugal 🇵🇹
 </p>
