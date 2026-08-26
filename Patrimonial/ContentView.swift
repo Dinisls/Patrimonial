@@ -1,24 +1,17 @@
-//
-//  ContentView.swift
-//  Patrimonial
-//
-//  Created by Dinis Santos on 08/05/2026.
-//
-
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
-        }
-        .padding()
+        PBRootView()
     }
 }
 
 #Preview {
     ContentView()
+        .modelContainer(for: [
+            Account.self,
+            FinancialTransaction.self,
+            CustomCategory.self
+        ], inMemory: true)
 }

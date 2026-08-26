@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "A0000001-0001-0001-0001-000000000001",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Patrimonial.xcodeproj",
+      "identifier" : "0A40C41B2FAE617200F01746",
+      "name" : "Patrimonial"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Patrimonial.xcodeproj",
+        "identifier" : "0A40C42C2FAE617400F01746",
+        "name" : "PatrimonialTests"
+      }
+    }
+  ],
+  "version" : 1
+}

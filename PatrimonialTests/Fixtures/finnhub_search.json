@@ -1,0 +1,29 @@
+{
+  "count": 4,
+  "result": [
+    {
+      "description": "Apple Inc",
+      "displaySymbol": "AAPL",
+      "symbol": "AAPL",
+      "type": "Common Stock"
+    },
+    {
+      "description": "NVIDIA Corporation",
+      "displaySymbol": "NVDA",
+      "symbol": "NVDA",
+      "type": "Common Stock"
+    },
+    {
+      "description": "Vanguard S&P 500 ETF",
+      "displaySymbol": "VOO",
+      "symbol": "VOO",
+      "type": "ETF"
+    },
+    {
+      "description": "Apple Hospitality REIT",
+      "displaySymbol": "APLE",
+      "symbol": "APLE",
+      "type": "Common Stock"
+    }
+  ]
+}

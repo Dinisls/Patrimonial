@@ -1,0 +1,32 @@
+[
+  {
+    "id": "bitcoin",
+    "symbol": "btc",
+    "name": "Bitcoin",
+    "market_cap_rank": 1
+  },
+  {
+    "id": "ethereum",
+    "symbol": "eth",
+    "name": "Ethereum",
+    "market_cap_rank": 2
+  },
+  {
+    "id": "solana",
+    "symbol": "sol",
+    "name": "Solana",
+    "market_cap_rank": 5
+  },
+  {
+    "id": "solanium",
+    "symbol": "sol",
+    "name": "Solanium",
+    "market_cap_rank": 850
+  },
+  {
+    "id": "wrapped-bitcoin",
+    "symbol": "wbtc",
+    "name": "Wrapped Bitcoin",
+    "market_cap_rank": 15
+  }
+]
