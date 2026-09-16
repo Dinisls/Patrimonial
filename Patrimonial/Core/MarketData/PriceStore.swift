@@ -63,6 +63,7 @@ final class PriceStore {
         var mic: String? { id.mic }
     }
     private var listings: [String: Listing] = [:]
+    private var assetClasses: [String: AssetClass] = [:]
 
     /// Records what a listing trades in. The venue is already in the key, so
     /// there is nothing here that can disagree with it.
@@ -109,7 +110,7 @@ final class PriceStore {
     /// window is the session that close came from, closed at both ends; with any
     /// live source it is the session in progress, open-ended.
     func sessionWindow(for id: ListingID, at date: Date = Date()) -> MarketCalendar.SessionWindow {
-        if isCrypto(id.symbol) {
+        if shouldRouteToCrypto(id) {
             return .open(from: MarketCalendar.currentSessionStart(.crypto, at: date))
         }
         guard let exchange = exchange(for: id) else {
@@ -331,7 +332,25 @@ final class PriceStore {
 
     /// Wires the real providers, or leaves the mock in place when keys are
     /// missing — and reports which happened so the UI can say so.
+    ///
+    /// When a proxy URL is configured the proxy is the primary and fallback
+    /// provider: API keys live server-side and the proxy caches popular symbols,
+    /// so the client never needs TwelveData or Finnhub keys at all. CoinGecko
+    /// stays local because the proxy does not cover crypto yet, and Yahoo stays
+    /// as the last resort for venues the proxy cannot reach.
     func configureLive(modelContext: ModelContext) {
+        if AppConfig.hasProxy {
+            let proxy = ProxyMarketDataProvider(baseURL: AppConfig.proxyURL)
+            configure(
+                provider: proxy,
+                fallbackProvider: proxy,
+                cryptoProvider: CoinGeckoProvider(),
+                europeanProvider: proxy,
+                lastResortProvider: YahooChartProvider(),
+                modelContext: modelContext
+            )
+            return
+        }
         guard AppConfig.hasTwelveDataKey || AppConfig.hasFinnhubKey || AppConfig.hasAlphaVantageKey else {
             self.modelContext = modelContext
             self.isUsingMockData = true
@@ -342,7 +361,6 @@ final class PriceStore {
             fallbackProvider: FinnhubProvider(),
             cryptoProvider: CoinGeckoProvider(),
             europeanProvider: AppConfig.hasAlphaVantageKey ? AlphaVantageProvider() : nil,
-            // No key, so it is always available — and always last.
             lastResortProvider: YahooChartProvider(),
             modelContext: modelContext
         )
@@ -420,6 +438,7 @@ final class PriceStore {
         guard let assets = try? ctx.fetch(FetchDescriptor<Asset>()) else { return }
         for asset in assets {
             register(asset.listing, currency: asset.currency)
+            assetClasses[asset.listing.storageKey] = asset.assetClass
         }
     }
 
@@ -444,6 +463,30 @@ final class PriceStore {
         persistCoinID(symbol: symbol.lowercased(), coinID: coinID, name: symbol)
     }
 
+    func registerAssetClass(_ id: ListingID, _ assetClass: AssetClass) {
+        assetClasses[id.storageKey] = assetClass
+    }
+
+    /// Whether the routing should send this listing to CoinGecko.
+    ///
+    /// Two barriers, either sufficient alone:
+    /// 1. A MIC that `exchangeForMIC` recognises is a stock exchange — never crypto.
+    /// 2. An `AssetClass` from the `Asset` table that is not `.crypto` — the user
+    ///    bought it as a stock/ETF/bond, so it stays on the stock providers.
+    ///
+    /// Only when neither barrier fires AND the symbol is in `coinIDMap` does the
+    /// listing go to CoinGecko. This stops SOL-on-NYSE from being priced as
+    /// Solana while leaving genuine crypto unaffected.
+    func shouldRouteToCrypto(_ listing: ListingID) -> Bool {
+        if let mic = listing.mic, MarketCalendar.exchangeForMIC(mic) != nil {
+            return false
+        }
+        if let cls = assetClasses[listing.storageKey], cls != .crypto {
+            return false
+        }
+        return coinIDMap[listing.symbol.lowercased()] != nil
+    }
+
     // MARK: - Fetch with routing
 
     func refresh(_ requested: [ListingID]) async {
@@ -451,15 +494,24 @@ final class PriceStore {
         isLoading = true
         lastError = nil
 
+        await ensureCoinIDMap()
+
         var stockListings: [ListingID] = []
         var cryptoIDs: [String] = []
         var cryptoIDToListing: [String: ListingID] = [:]
 
         for listing in requested {
-            if let coinID = coinIDMap[listing.symbol.lowercased()] {
+            if shouldRouteToCrypto(listing),
+               let coinID = coinIDMap[listing.symbol.lowercased()] {
                 cryptoIDs.append(coinID)
                 cryptoIDToListing[coinID] = listing
             } else {
+                let exch = exchange(for: listing)
+                if let exch, !MarketCalendar.isOpen(exch),
+                   quotes[listing.storageKey] != nil {
+                    Self.log.info("skip \(listing.symbol, privacy: .public): \(exch.rawValue, privacy: .public) closed, cached")
+                    continue
+                }
                 stockListings.append(listing)
             }
         }
@@ -779,7 +831,7 @@ final class PriceStore {
         // The recorded venue first. `exchangeForSymbol` answers NYSE for any
         // ticker without a suffix, which is every held position, so a XETRA
         // holding was being timed against New York's opening hours.
-        let exchange: MarketCalendar.Exchange = isCrypto(id.symbol)
+        let exchange: MarketCalendar.Exchange = shouldRouteToCrypto(id)
             ? .crypto
             : (self.exchange(for: id) ?? MarketCalendar.exchangeForSymbol(id.symbol))
         return MarketCalendar.freshness(
@@ -811,6 +863,7 @@ final class PriceStore {
         // leave nothing keyed by a ticker the user no longer holds. It refetches
         // on demand.
         coinIDMap.removeAll()
+        assetClasses.removeAll()
         coinIDMapLastRefresh = nil
         lastError = nil
         revision &+= 1

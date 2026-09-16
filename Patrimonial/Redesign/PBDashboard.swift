@@ -51,7 +51,15 @@ struct DashboardScreen: View {
                 .environment(priceStore)
         }
         .sheet(item: $editTx) { tx in
-            TransactionEditSheet(tx: tx).environment(store)
+            // `.id` is load-bearing. TransactionEditSheet seeds its
+            // @State in init, and SwiftUI reuses the sheet's view
+            // identity between presentations — so the second
+            // transaction opened kept the first one's values on screen,
+            // and Guardar would have written them back. Keying on the
+            // transaction's own UUID forces fresh state every time.
+            TransactionEditSheet(tx: tx)
+                .environment(store)
+                .id(tx.txID)
         }
         .navigationDestination(for: PBRoute.self) { route in
             switch route {

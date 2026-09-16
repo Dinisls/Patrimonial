@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		0A59F313305AA6CA0022B01C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A59F312305AA6C90022B01C /* WidgetKit.framework */; };
+		0A59F315305AA6CA0022B01C /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0A59F314305AA6CA0022B01C /* SwiftUI.framework */; };
+		0A59F322305AA6CB0022B01C /* PatrimonialWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 0A59F310305AA6C90022B01C /* PatrimonialWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		0A40C42D2FAE617400F01746 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,17 +27,55 @@
 			remoteGlobalIDString = 0A40C41E2FAE617300F01746;
 			remoteInfo = Patrimonial;
 		};
+		0A59F320305AA6CB0022B01C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0A40C4172FAE617300F01746 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0A59F30F305AA6C90022B01C;
+			remoteInfo = PatrimonialWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0A59F327305AA6CB0022B01C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				0A59F322305AA6CB0022B01C /* PatrimonialWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0A40C41F2FAE617300F01746 /* Patrimonial.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Patrimonial.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A40C42C2FAE617400F01746 /* PatrimonialTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PatrimonialTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0A40C4362FAE617400F01746 /* PatrimonialUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PatrimonialUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A59F310305AA6C90022B01C /* PatrimonialWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PatrimonialWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		0A59F312305AA6C90022B01C /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		0A59F314305AA6CA0022B01C /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		0A59F32F305AA9260022B01C /* PatrimonialWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PatrimonialWidgetExtension.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		0A59F32D305AA8E20022B01C /* Exceptions for "Patrimonial" folder in "PatrimonialWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Core/Persistence/WidgetDataBridge.swift,
+			);
+			target = 0A59F30F305AA6C90022B01C /* PatrimonialWidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0A40C4212FAE617300F01746 /* Patrimonial */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				0A59F32D305AA8E20022B01C /* Exceptions for "Patrimonial" folder in "PatrimonialWidgetExtension" target */,
+			);
 			path = Patrimonial;
 			sourceTree = "<group>";
 		};
@@ -43,6 +87,11 @@
 		0A40C4392FAE617400F01746 /* PatrimonialUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = PatrimonialUITests;
+			sourceTree = "<group>";
+		};
+		0A59F316305AA6CA0022B01C /* PatrimonialWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = PatrimonialWidget;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -69,15 +118,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A59F30D305AA6C90022B01C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				0A59F315305AA6CA0022B01C /* SwiftUI.framework in Frameworks */,
+				0A59F313305AA6CA0022B01C /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		0A40C4162FAE617300F01746 = {
 			isa = PBXGroup;
 			children = (
+				0A59F32F305AA9260022B01C /* PatrimonialWidgetExtension.entitlements */,
 				0A40C4212FAE617300F01746 /* Patrimonial */,
 				0A40C42F2FAE617400F01746 /* PatrimonialTests */,
 				0A40C4392FAE617400F01746 /* PatrimonialUITests */,
+				0A59F316305AA6CA0022B01C /* PatrimonialWidget */,
+				0A59F311305AA6C90022B01C /* Frameworks */,
 				0A40C4202FAE617300F01746 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -88,8 +149,18 @@
 				0A40C41F2FAE617300F01746 /* Patrimonial.app */,
 				0A40C42C2FAE617400F01746 /* PatrimonialTests.xctest */,
 				0A40C4362FAE617400F01746 /* PatrimonialUITests.xctest */,
+				0A59F310305AA6C90022B01C /* PatrimonialWidgetExtension.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		0A59F311305AA6C90022B01C /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				0A59F312305AA6C90022B01C /* WidgetKit.framework */,
+				0A59F314305AA6CA0022B01C /* SwiftUI.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -102,10 +173,12 @@
 				0A40C41B2FAE617300F01746 /* Sources */,
 				0A40C41C2FAE617300F01746 /* Frameworks */,
 				0A40C41D2FAE617300F01746 /* Resources */,
+				0A59F327305AA6CB0022B01C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				0A59F321305AA6CB0022B01C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0A40C4212FAE617300F01746 /* Patrimonial */,
@@ -163,6 +236,28 @@
 			productReference = 0A40C4362FAE617400F01746 /* PatrimonialUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		0A59F30F305AA6C90022B01C /* PatrimonialWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0A59F324305AA6CB0022B01C /* Build configuration list for PBXNativeTarget "PatrimonialWidgetExtension" */;
+			buildPhases = (
+				0A59F30C305AA6C90022B01C /* Sources */,
+				0A59F30D305AA6C90022B01C /* Frameworks */,
+				0A59F30E305AA6C90022B01C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				0A59F316305AA6CA0022B01C /* PatrimonialWidget */,
+			);
+			name = PatrimonialWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = PatrimonialWidgetExtension;
+			productReference = 0A59F310305AA6C90022B01C /* PatrimonialWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -184,6 +279,9 @@
 						CreatedOnToolsVersion = 26.4;
 						TestTargetID = 0A40C41E2FAE617300F01746;
 					};
+					0A59F30F305AA6C90022B01C = {
+						CreatedOnToolsVersion = 26.4;
+					};
 				};
 			};
 			buildConfigurationList = 0A40C41A2FAE617300F01746 /* Build configuration list for PBXProject "Patrimonial" */;
@@ -203,6 +301,7 @@
 				0A40C41E2FAE617300F01746 /* Patrimonial */,
 				0A40C42B2FAE617400F01746 /* PatrimonialTests */,
 				0A40C4352FAE617400F01746 /* PatrimonialUITests */,
+				0A59F30F305AA6C90022B01C /* PatrimonialWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
@@ -223,6 +322,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		0A40C4342FAE617400F01746 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		0A59F30E305AA6C90022B01C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -253,6 +359,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		0A59F30C305AA6C90022B01C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -265,6 +378,11 @@
 			isa = PBXTargetDependency;
 			target = 0A40C41E2FAE617300F01746 /* Patrimonial */;
 			targetProxy = 0A40C4372FAE617400F01746 /* PBXContainerItemProxy */;
+		};
+		0A59F321305AA6CB0022B01C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0A59F30F305AA6C90022B01C /* PatrimonialWidgetExtension */;
+			targetProxy = 0A59F320305AA6CB0022B01C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -328,6 +446,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -385,6 +504,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -396,11 +516,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = Patrimonial/Patrimonial.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LR38K7HG8W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PatrimonialInfo.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -431,11 +553,13 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
+				CODE_SIGN_ENTITLEMENTS = Patrimonial/Patrimonial.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LR38K7HG8W;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PatrimonialInfo.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -468,7 +592,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LR38K7HG8W;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = DinisSantos.PatrimonialTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -490,7 +614,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LR38K7HG8W;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = DinisSantos.PatrimonialTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -511,6 +635,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LR38K7HG8W;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = DinisSantos.PatrimonialUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -531,6 +656,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = LR38K7HG8W;
 				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = DinisSantos.PatrimonialUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -541,6 +667,72 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = Patrimonial;
+			};
+			name = Release;
+		};
+		0A59F325305AA6CB0022B01C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PatrimonialWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = LR38K7HG8W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PatrimonialWidgetInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PatrimonialWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = DinisSantos.Patrimonial.PatrimonialWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG WIDGET_EXTENSION $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		0A59F326305AA6CB0022B01C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = PatrimonialWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = LR38K7HG8W;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = PatrimonialWidgetInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = PatrimonialWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = DinisSantos.Patrimonial.PatrimonialWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "WIDGET_EXTENSION $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -579,6 +771,15 @@
 			buildConfigurations = (
 				0A40C4472FAE617400F01746 /* Debug */,
 				0A40C4482FAE617400F01746 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		0A59F324305AA6CB0022B01C /* Build configuration list for PBXNativeTarget "PatrimonialWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0A59F325305AA6CB0022B01C /* Debug */,
+				0A59F326305AA6CB0022B01C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

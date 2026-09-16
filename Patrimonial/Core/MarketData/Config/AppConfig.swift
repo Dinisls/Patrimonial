@@ -25,4 +25,8 @@ enum AppConfig {
     static var hasFinnhubKey: Bool { !finnhubAPIKey.isEmpty }
     static var hasTwelveDataKey: Bool { !twelveDataAPIKey.isEmpty }
     static var hasAlphaVantageKey: Bool { !alphaVantageAPIKey.isEmpty }
+
+    static var proxyURL: String { key("PROXY_URL") }
+    static var proxySecret: String { key("PROXY_SECRET") }
+    static var hasProxy: Bool { !proxyURL.isEmpty }
 }

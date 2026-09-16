@@ -496,7 +496,7 @@ struct AddPositionSheet: View {
         fxIsAutomatic = true
         Task {
             if let rate = await viewModel.lookupFXRate(currency: currency, on: date) {
-                fxRateStr = "\(rate)"
+                fxRateStr = Self.editableDecimal(rate.value)
                 fxIsAutomatic = true
             } else {
                 fxRateStr = ""

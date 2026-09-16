@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import os.log
 
 /// Writes one portfolio snapshot per day, so Evolução has something to draw.
 ///
@@ -21,16 +22,22 @@ import SwiftData
 @MainActor
 enum PortfolioSnapshotRecorder {
 
+    private static let log = Logger(subsystem: "pt.patrimonial", category: "snapshot")
+
     /// Records today's value, replacing any row already written today.
     ///
     /// Returns whether a snapshot was stored, so a caller can tell "nothing to
-    /// record" from "recorded".
+    /// record" from "recorded". A `true` means the row is on disk; a `false`
+    /// after a full portfolio means the save was attempted and the store
+    /// refused it — the next quote revision retries the same day, so the day is
+    /// only lost if every attempt fails before midnight.
     @discardableResult
     static func record(
         holdings: [Holding],
         accounts: [Account],
         in ctx: ModelContext,
-        now: Date = Date()
+        now: Date = Date(),
+        save: (ModelContext) throws -> Void = { try $0.save() }
     ) -> Bool {
         let open = holdings.filter(\.isOpen)
 
@@ -68,7 +75,16 @@ enum PortfolioSnapshotRecorder {
                 cashTotal: cashTotal
             ))
         }
-        try? ctx.save()
+        do {
+            try save(ctx)
+        } catch {
+            // No UI runs behind this — it fires off a background Task on every
+            // quote revision. So the failure is logged rather than surfaced,
+            // and the false return keeps `true` honest: the next revision (or a
+            // reopen on the same day) will retry.
+            log.error("snapshot save failed: \(error, privacy: .public)")
+            return false
+        }
         return true
     }
 

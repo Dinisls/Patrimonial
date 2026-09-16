@@ -251,7 +251,7 @@ struct DataResetTests {
 
         // And a new account plus a new position go in cleanly on top of the
         // wiped tables.
-        appStore.addAccount(
+        try appStore.addAccount(
             name: "Revolut", sub: "Conta", kind: .cash, colorHex: 0x0A84FF,
             initialBalance: 500
         )

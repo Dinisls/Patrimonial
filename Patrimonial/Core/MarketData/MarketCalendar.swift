@@ -550,7 +550,7 @@ nonisolated struct MarketCalendar: Sendable {
 
     static func pollingInterval(for exchange: Exchange) -> TimeInterval {
         if exchange == .crypto { return 15 }
-        return isOpen(exchange) ? 15 : 600
+        return isOpen(exchange) ? 15 : 1800
     }
 
     static func exchangeForSymbol(_ symbol: String) -> Exchange {

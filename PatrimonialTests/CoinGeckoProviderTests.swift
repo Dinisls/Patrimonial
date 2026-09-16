@@ -250,6 +250,133 @@ struct CoinGeckoProviderTests {
     }
 }
 
+// MARK: - I4-1: Equity with a crypto ticker must not route to CoinGecko
+
+@MainActor
+struct CryptoRoutingCollisionTests {
+
+    private func storeWithCollision(
+        assetClass: AssetClass, mic: String?
+    ) -> (PriceStore, TrackingMarketDataProvider, TrackingMarketDataProvider, ModelContext) {
+        let stock = TrackingMarketDataProvider(name: "stock")
+        let crypto = TrackingMarketDataProvider(name: "crypto")
+        let container = try! PersistenceController.makeContainer(inMemory: true)
+        let ctx = ModelContext(container)
+
+        let store = PriceStore(provider: stock, cryptoProvider: crypto)
+        store.configure(provider: stock, cryptoProvider: crypto, modelContext: ctx)
+        store.registerCoinID(symbol: "SOL", coinID: "solana")
+        store.registerCoinID(symbol: "LUNA", coinID: "terra-luna-2")
+        store.registerCoinID(symbol: "LINK", coinID: "chainlink")
+        store.registerCoinID(symbol: "SAND", coinID: "the-sandbox")
+
+        let listing = ListingID(symbol: "SOL", mic: mic)
+        store.registerAssetClass(listing, assetClass)
+        store.register(listing, currency: mic != nil ? "USD" : "EUR")
+        return (store, stock, crypto, ctx)
+    }
+
+    @Test func equityOnNYSEWithCollidingTickerRoutesToStockProvider() async throws {
+        let (store, stock, crypto, _) = storeWithCollision(assetClass: .stock, mic: "XNYS")
+        await store.refresh([ListingID(symbol: "SOL", mic: "XNYS")])
+        #expect(stock.quoteCallCount > 0)
+        #expect(crypto.quoteCallCount == 0)
+    }
+
+    @Test func genuineCryptoWithoutMICRoutesToCoinGecko() async throws {
+        let (store, stock, crypto, _) = storeWithCollision(assetClass: .crypto, mic: nil)
+        await store.refresh([ListingID(symbol: "SOL")])
+        #expect(crypto.quoteCallCount > 0)
+        #expect(stock.quoteCallCount == 0)
+    }
+
+    @Test func stockClassWithoutMICStillBlocksCoinGecko() async throws {
+        let (store, stock, crypto, _) = storeWithCollision(assetClass: .stock, mic: nil)
+        await store.refresh([ListingID(symbol: "SOL")])
+        #expect(stock.quoteCallCount > 0)
+        #expect(crypto.quoteCallCount == 0)
+    }
+
+    @Test func etfClassBlocksCoinGeckoToo() async throws {
+        let (store, stock, crypto, _) = storeWithCollision(assetClass: .etf, mic: "XNYS")
+        await store.refresh([ListingID(symbol: "SOL", mic: "XNYS")])
+        #expect(stock.quoteCallCount > 0)
+        #expect(crypto.quoteCallCount == 0)
+    }
+
+    @Test func lunaOnNasdaqRoutesToStockNotCoinGecko() async throws {
+        let stock = TrackingMarketDataProvider(name: "stock")
+        let crypto = TrackingMarketDataProvider(name: "crypto")
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = ModelContext(container)
+
+        let store = PriceStore(provider: stock, cryptoProvider: crypto)
+        store.configure(provider: stock, cryptoProvider: crypto, modelContext: ctx)
+        store.registerCoinID(symbol: "LUNA", coinID: "terra-luna-2")
+
+        let listing = ListingID(symbol: "LUNA", mic: "XNGS")
+        store.registerAssetClass(listing, .stock)
+        store.register(listing, currency: "USD")
+
+        await store.refresh([listing])
+        #expect(stock.quoteCallCount > 0)
+        #expect(crypto.quoteCallCount == 0)
+    }
+
+    @Test func realBTCWithoutMICStillRoutesToCoinGecko() async throws {
+        let stock = TrackingMarketDataProvider(name: "stock")
+        let crypto = TrackingMarketDataProvider(name: "crypto")
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = ModelContext(container)
+
+        let store = PriceStore(provider: stock, cryptoProvider: crypto)
+        store.configure(provider: stock, cryptoProvider: crypto, modelContext: ctx)
+        store.registerCoinID(symbol: "BTC", coinID: "bitcoin")
+
+        let listing = ListingID(symbol: "BTC")
+        store.registerAssetClass(listing, .crypto)
+
+        await store.refresh([listing])
+        #expect(crypto.quoteCallCount > 0)
+        #expect(stock.quoteCallCount == 0)
+    }
+
+    @Test func micAloneIsSufficientEvenWithoutAssetClass() async throws {
+        let stock = TrackingMarketDataProvider(name: "stock")
+        let crypto = TrackingMarketDataProvider(name: "crypto")
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = ModelContext(container)
+
+        let store = PriceStore(provider: stock, cryptoProvider: crypto)
+        store.configure(provider: stock, cryptoProvider: crypto, modelContext: ctx)
+        store.registerCoinID(symbol: "LINK", coinID: "chainlink")
+        store.register(ListingID(symbol: "LINK", mic: "XNYS"), currency: "USD")
+
+        await store.refresh([ListingID(symbol: "LINK", mic: "XNYS")])
+        #expect(stock.quoteCallCount > 0)
+        #expect(crypto.quoteCallCount == 0)
+    }
+
+    @Test func removingMICBarrierLetsCollisionThrough() async throws {
+        let stock = TrackingMarketDataProvider(name: "stock")
+        let crypto = TrackingMarketDataProvider(name: "crypto")
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = ModelContext(container)
+
+        let store = PriceStore(provider: stock, cryptoProvider: crypto)
+        store.configure(provider: stock, cryptoProvider: crypto, modelContext: ctx)
+        store.registerCoinID(symbol: "SOL", coinID: "solana")
+
+        let listing = ListingID(symbol: "SOL", mic: "XNYS")
+        store.registerAssetClass(listing, .stock)
+
+        #expect(store.shouldRouteToCrypto(listing) == false)
+
+        let bare = ListingID(symbol: "SOL")
+        #expect(store.shouldRouteToCrypto(bare) == true)
+    }
+}
+
 // Used to locate the test bundle
 private class BundleMarker {}
 

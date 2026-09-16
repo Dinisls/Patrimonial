@@ -52,7 +52,7 @@ final class AppStore {
         }
     }
 
-    func addCustomCategory(name: String, symbol: String, colorHex: UInt, isExpense: Bool, isIncome: Bool) {
+    func addCustomCategory(name: String, symbol: String, colorHex: UInt, isExpense: Bool, isIncome: Bool) throws {
         guard let ctx else { return }
         let cat = CustomCategory(
             name: name,
@@ -62,15 +62,15 @@ final class AppStore {
             isIncome: isIncome
         )
         ctx.insert(cat)
-        save()
+        try save()
     }
 
-    func deleteCustomCategory(id: String) {
+    func deleteCustomCategory(id: String) throws {
         guard let ctx, let uuid = UUID(uuidString: id) else { return }
         let descriptor = FetchDescriptor<CustomCategory>(predicate: #Predicate { $0.id == uuid })
         if let cat = try? ctx.fetch(descriptor).first {
             ctx.delete(cat)
-            save()
+            try save()
         }
     }
 
@@ -92,8 +92,26 @@ final class AppStore {
         }
     }
 
-    private func save() {
-        try? ctx?.save()
+    /// Test seam. Production leaves it nil and the real context writes to disk;
+    /// a test sets it to throw, exercising the failure path without a context
+    /// that has to be coaxed into refusing.
+    var saveOverride: ((ModelContext) throws -> Void)?
+
+    /// Every user mutation funnels here, and it no longer swallows a failed
+    /// write. On failure it rolls the mutation back — so a retry (the sheet
+    /// stays open) starts from clean state instead of committing the change
+    /// twice — rethrows, and does NOT `reload()`. Skipping the reload is half
+    /// the fix: reload re-reads the context, and the context still holds the
+    /// uncommitted change, so reloading would show the user an edit the disk
+    /// refused. The in-memory arrays are left at their last-saved truth.
+    private func save() throws {
+        guard let ctx else { return }
+        do {
+            if let saveOverride { try saveOverride(ctx) } else { try ctx.save() }
+        } catch {
+            ctx.rollback()
+            throw error
+        }
         reload()
     }
 
@@ -167,6 +185,8 @@ final class AppStore {
                     pbTx.assetQuantity = tx.assetQuantity
                     pbTx.assetUnitPrice = tx.assetUnitPrice
                     pbTx.assetFXRate = tx.assetFXRate
+                    pbTx.assetFXRateFrom = tx.assetFXRateFrom
+                    pbTx.assetFXRateTo = tx.assetFXRateTo
                     pbTx.assetCommission = tx.commission
                     pbTx.assetCurrency = assetCurrency(for: symbol)
                     if let qty = tx.assetQuantity {
@@ -425,12 +445,15 @@ final class AppStore {
             .map { $0 }
     }
 
+    private nonisolated static let shortMonthFmt: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "pt_PT")
+        f.dateFormat = "MMM"
+        return f
+    }()
+
     var availableMonths: [(month: Int, year: Int, label: String)] {
         let cal = Calendar.current
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "pt_PT")
-        fmt.dateFormat = "MMM yyyy"
-
         var seen = Set<String>()
         var result: [(month: Int, year: Int, label: String)] = []
 
@@ -440,10 +463,7 @@ final class AppStore {
             let y = cal.component(.year, from: d)
             let key = "\(y)-\(m)"
             if seen.insert(key).inserted {
-                let shortFmt = DateFormatter()
-                shortFmt.locale = Locale(identifier: "pt_PT")
-                shortFmt.dateFormat = "MMM"
-                let label = shortFmt.string(from: d).capitalized
+                let label = Self.shortMonthFmt.string(from: d).capitalized
                 result.append((month: m, year: y, label: label))
             }
         }
@@ -453,26 +473,24 @@ final class AppStore {
         let cy = cal.component(.year, from: now)
         let key = "\(cy)-\(cm)"
         if seen.insert(key).inserted {
-            let shortFmt = DateFormatter()
-            shortFmt.locale = Locale(identifier: "pt_PT")
-            shortFmt.dateFormat = "MMM"
-            result.append((month: cm, year: cy, label: shortFmt.string(from: now).capitalized))
+            result.append((month: cm, year: cy, label: Self.shortMonthFmt.string(from: now).capitalized))
         }
 
         return result.sorted { ($0.year, $0.month) < ($1.year, $1.month) }
     }
 
-    static func parseDate(_ s: String) -> Date? {
+    private nonisolated static let dateFmt: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "pt_PT")
         f.dateFormat = "d/M/yyyy"
-        return f.date(from: s)
+        return f
+    }()
+
+    static func parseDate(_ s: String) -> Date? {
+        dateFmt.date(from: s)
     }
     static func todayString() -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "pt_PT")
-        f.dateFormat = "d/M/yyyy"
-        return f.string(from: Date())
+        dateFmt.string(from: Date())
     }
 
     // MARK: - Recurring transaction generation
@@ -576,7 +594,7 @@ final class AppStore {
                         category: TxCategory, customCatID: String? = nil,
                         account: String, date: String,
                         recurrence: Recurrence = .none,
-                        recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil) {
+                        recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil) throws {
         guard let ctx, let acc = findAccount(named: account) else { return }
         let txType: TransactionType = isIncome ? .income : .expense
         let txCat = mapTxCatToTransactionCategory(category)
@@ -593,10 +611,10 @@ final class AppStore {
         tx.recurrenceDay = recurrenceDay
         tx.recurrenceDay2 = recurrenceDay2
         ctx.insert(tx)
-        save()
+        try save()
     }
 
-    func addTransfer(fromAccount: String, toAccount: String, amount: Double, note: String, date: String) {
+    func addTransfer(fromAccount: String, toAccount: String, amount: Double, note: String, date: String) throws {
         guard let ctx,
               let src = findAccount(named: fromAccount),
               let dst = findAccount(named: toAccount) else { return }
@@ -609,14 +627,14 @@ final class AppStore {
             destinationAccount: dst
         )
         ctx.insert(tx)
-        save()
+        try save()
     }
 
     func updateTransaction(id: UUID, title: String, amount: Double, isIncome: Bool,
                            category: TxCategory, customCatID: String? = nil,
                            account: String, date: String,
                            recurrence: Recurrence = .none,
-                           recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil) {
+                           recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil) throws {
         guard let ctx else { return }
         let descriptor = FetchDescriptor<FinancialTransaction>(predicate: #Predicate { $0.id == id })
         guard let tx = try? ctx.fetch(descriptor).first else { return }
@@ -643,10 +661,10 @@ final class AppStore {
         tx.recurrenceDay2 = recurrenceDay2
         if let d = Self.parseDate(date) { tx.date = d }
         if let acc = findAccount(named: account) { tx.sourceAccount = acc }
-        save()
+        try save()
     }
 
-    func updateTransactionMeta(id: UUID, account: String, date: String) {
+    func updateTransactionMeta(id: UUID, account: String, date: String) throws {
         guard let ctx else { return }
         let descriptor = FetchDescriptor<FinancialTransaction>(predicate: #Predicate { $0.id == id })
         guard let tx = try? ctx.fetch(descriptor).first else { return }
@@ -655,10 +673,10 @@ final class AppStore {
         guard tx.assetSymbol == nil else { return }
         if let d = Self.parseDate(date) { tx.date = d }
         if let acc = findAccount(named: account) { tx.sourceAccount = acc }
-        save()
+        try save()
     }
 
-    func deleteTransaction(id: UUID) {
+    func deleteTransaction(id: UUID) throws {
         guard let ctx else { return }
         let descriptor = FetchDescriptor<FinancialTransaction>(predicate: #Predicate { $0.id == id })
         guard let tx = try? ctx.fetch(descriptor).first else { return }
@@ -683,10 +701,10 @@ final class AppStore {
             }
         }
 
-        save()
+        try save()
     }
 
-    func updateAccount(id: String, name: String, sub: String, colorHex: UInt, balance: Double) {
+    func updateAccount(id: String, name: String, sub: String, colorHex: UInt, balance: Double) throws {
         guard let ctx, let acc = findAccountByID(id) else { return }
         let oldBalance = Double(truncating: acc.balance as NSNumber)
         let delta = balance - oldBalance
@@ -706,16 +724,50 @@ final class AppStore {
             )
             ctx.insert(tx)
         }
-        save()
+        try save()
     }
 
-    func deleteAccount(id: String) {
+    func deleteAccount(id: String) throws {
         guard let ctx, let acc = findAccountByID(id) else { return }
         ctx.delete(acc)
-        save()
+        try save()
     }
 
-    func addAccount(name: String, sub: String, kind: AccountKind, colorHex: UInt, initialBalance: Double) {
+    func investmentCountForAccount(id: String) -> Int {
+        guard let acc = findAccountByID(id) else { return 0 }
+        return acc.outgoingTransactions.filter(\.isInvestmentTransaction).count
+    }
+
+    func deletionImpact(forAccountID id: String) -> AccountsViewModel.DeletionImpact? {
+        guard let ctx, let acc = findAccountByID(id) else { return nil }
+        let vm = AccountsViewModel(modelContext: ctx)
+        return vm.deletionImpact(for: acc)
+    }
+
+    func moveBalanceDelta(forAccountID id: String) -> Decimal {
+        guard let ctx, let acc = findAccountByID(id) else { return 0 }
+        let vm = AccountsViewModel(modelContext: ctx)
+        return vm.moveBalanceDelta(for: acc)
+    }
+
+    func moveInvestmentsAndDeleteAccount(sourceID: String, destinationID: String) throws {
+        guard let ctx,
+              let source = findAccountByID(sourceID),
+              let destination = findAccountByID(destinationID)
+        else { return }
+        let vm = AccountsViewModel(modelContext: ctx)
+        try vm.moveInvestmentsAndDelete(from: source, to: destination)
+        reload()
+    }
+
+    func deleteAccountWithEverything(id: String) throws {
+        guard let ctx, let acc = findAccountByID(id) else { return }
+        let vm = AccountsViewModel(modelContext: ctx)
+        try vm.deleteWithEverything(acc)
+        reload()
+    }
+
+    func addAccount(name: String, sub: String, kind: AccountKind, colorHex: UInt, initialBalance: Double) throws {
         guard let ctx else { return }
         let type: AccountType = .checking
         let acc = Account(name: name, type: type, colorHex: uintToHexString(colorHex))
@@ -732,7 +784,7 @@ final class AppStore {
             )
             ctx.insert(tx)
         }
-        save()
+        try save()
     }
 
     /// Drops the cached arrays after the stored rows have gone.
@@ -780,10 +832,7 @@ final class AppStore {
     }
 
     private func formatDate(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "pt_PT")
-        f.dateFormat = "d/M/yyyy"
-        return f.string(from: d)
+        Self.dateFmt.string(from: d)
     }
 
     private func mapCategory(_ cat: TransactionCategory?, type: TransactionType) -> TxCategory {
@@ -818,15 +867,17 @@ final class AppStore {
         return asset.currency
     }
 
-    /// Up to 8 fraction digits so crypto quantities are not truncated, and no
-    /// trailing zeros so a whole share reads "1" and not "1,00000000".
-    private func formatQuantity(_ qty: Decimal) -> String {
+    private nonisolated static let quantityFmt: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal
         f.locale = Locale(identifier: "pt_PT")
         f.minimumFractionDigits = 0
         f.maximumFractionDigits = 8
-        return f.string(from: qty as NSDecimalNumber) ?? "\(qty)"
+        return f
+    }()
+
+    private func formatQuantity(_ qty: Decimal) -> String {
+        Self.quantityFmt.string(from: qty as NSDecimalNumber) ?? "\(qty)"
     }
 
     private func mapTxCatToTransactionCategory(_ cat: TxCategory) -> TransactionCategory {

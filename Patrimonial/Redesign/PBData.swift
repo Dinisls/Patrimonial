@@ -81,6 +81,8 @@ struct PBTx: Identifiable {
     var assetQuantity: Decimal? = nil
     var assetUnitPrice: Decimal? = nil
     var assetFXRate: Decimal? = nil
+    var assetFXRateFrom: String? = nil
+    var assetFXRateTo: String? = nil
     var assetCommission: Decimal? = nil
     var assetCurrency: String? = nil
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1600"
-   version = "1.7">
+   LastUpgradeVersion = "2640"
+   version = "1.8">
    <BuildAction
       parallelizeBuildables = "YES"
       buildImplicitDependencies = "YES"
@@ -15,7 +15,7 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0A40C41B2FAE617200F01746"
+               BlueprintIdentifier = "0A40C41E2FAE617300F01746"
                BuildableName = "Patrimonial.app"
                BlueprintName = "Patrimonial"
                ReferencedContainer = "container:Patrimonial.xcodeproj">
@@ -46,10 +46,11 @@
       debugServiceExtension = "internal"
       allowLocationSimulation = "YES">
       <BuildableProductRunnable
-         reuseRunningBinaryWhenInstalling = "YES">
+         reuseRunningBinaryWhenInstalling = "YES"
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "0A40C41B2FAE617200F01746"
+            BlueprintIdentifier = "0A40C41E2FAE617300F01746"
             BuildableName = "Patrimonial.app"
             BlueprintName = "Patrimonial"
             ReferencedContainer = "container:Patrimonial.xcodeproj">
@@ -63,10 +64,11 @@
       useCustomWorkingDirectory = "NO"
       debugDocumentVersioning = "YES">
       <BuildableProductRunnable
-         reuseRunningBinaryWhenInstalling = "YES">
+         reuseRunningBinaryWhenInstalling = "YES"
+         runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "0A40C41B2FAE617200F01746"
+            BlueprintIdentifier = "0A40C41E2FAE617300F01746"
             BuildableName = "Patrimonial.app"
             BlueprintName = "Patrimonial"
             ReferencedContainer = "container:Patrimonial.xcodeproj">

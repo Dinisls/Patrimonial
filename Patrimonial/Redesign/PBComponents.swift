@@ -61,9 +61,11 @@ struct DeltaChip: View {
             .foregroundStyle(color)
             .padding(.horizontal, soft ? (big ? 12 : 9) : 0)
             .padding(.vertical, soft ? (big ? 6 : 4) : 0)
-            .background(
-                soft ? AnyView(Capsule().fill(color.opacity(0.15))) : AnyView(Color.clear)
-            )
+            .background {
+                if soft {
+                    Capsule().fill(color.opacity(0.15))
+                }
+            }
     }
 }
 
@@ -141,7 +143,7 @@ struct RangeTabs: View {
         HStack(spacing: 2) {
             ForEach(options, id: \.self) { o in
                 let on = o == value
-                Button { withAnimation(.easeInOut(duration: 0.2)) { value = o } } label: {
+                Button { withAnimation(.spring(duration: 0.25, bounce: 0)) { value = o } } label: {
                     Text(o)
                         .font(.system(size: 13, weight: .semibold))
                         .frame(maxWidth: .infinity)

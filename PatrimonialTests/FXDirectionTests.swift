@@ -228,3 +228,92 @@ struct FXDirectionThroughTheViewModelTests {
         #expect(mv == 2000)
     }
 }
+
+// MARK: - FX rate field formatting
+
+/// The text field that shows the exchange rate must display only the numeric
+/// value, never the FXRate struct's description. Printing the struct — e.g.
+/// "FXRate(from: \"USD\", to: \"EUR\", value: 0.85874)" — is not a valid
+/// number, so it blocks the save button and forces the user to retype.
+struct FXRateFieldFormattingTests {
+
+    @Test func editableDecimalFormatsOnlyTheNumber() throws {
+        let rate = try #require(FXRate(from: "USD", to: "EUR", value: Decimal(string: "0.85874")!))
+        let text = AddPositionSheet.editableDecimal(rate.value)
+
+        #expect(!text.contains("FXRate"))
+        #expect(!text.contains("from"))
+        #expect(!text.contains("to"))
+        #expect(!text.contains("("))
+
+        let parsed = Decimal(string: text.replacingOccurrences(of: ",", with: "."))
+        #expect(parsed == rate.value)
+    }
+
+    @Test func editableDecimalUsesCommaForPortugueseLocale() throws {
+        let rate = try #require(FXRate(from: "GBP", to: "EUR", value: Decimal(string: "1.16")!))
+        let text = AddPositionSheet.editableDecimal(rate.value)
+        #expect(text.contains(","))
+        #expect(!text.contains("."))
+    }
+
+    /// Saving a USD purchase with the automatic rate must store the direction
+    /// the Part 1 migration introduced: from=USD, to=EUR.
+    @Test @MainActor func savingUSDPurchaseStoresCorrectFXDirection() throws {
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = container.mainContext
+        let acc = Account(name: "Corretora", type: .brokerage)
+        ctx.insert(acc)
+
+        let vm = PortfolioViewModel()
+        vm.bind(modelContext: ctx, priceStore: PriceStore())
+
+        let usdAsset = AssetSearchResult(
+            symbol: "AAPL", name: "Apple Inc", exchange: "XNAS",
+            assetClass: .stock, currency: "USD", mic: "XNAS"
+        )
+
+        try vm.addInvestment(
+            type: .assetPurchase, symbol: "AAPL", quantity: 5,
+            unitPrice: 220, fxRate: Decimal(string: "0.85874")!,
+            commission: 0, account: acc, date: Date(), note: "",
+            asset: usdAsset
+        )
+
+        let txs = try ctx.fetch(FetchDescriptor<FinancialTransaction>())
+        let tx = try #require(txs.first { $0.assetSymbol == "AAPL" })
+        #expect(tx.assetFXRateFrom == "USD")
+        #expect(tx.assetFXRateTo == "EUR")
+        #expect(tx.assetFXRate == Decimal(string: "0.85874")!)
+    }
+
+    /// Editing the number by hand must not lose the currency direction — it
+    /// stays asset-currency → EUR regardless of whether the value is automatic.
+    @Test @MainActor func manualRateEditPreservesCurrencyDirection() throws {
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = container.mainContext
+        let acc = Account(name: "Broker", type: .brokerage)
+        ctx.insert(acc)
+
+        let vm = PortfolioViewModel()
+        vm.bind(modelContext: ctx, priceStore: PriceStore())
+
+        let gbpAsset = AssetSearchResult(
+            symbol: "SHEL.L", name: "Shell", exchange: "XLON",
+            assetClass: .stock, currency: "GBP", mic: "XLON"
+        )
+
+        try vm.addInvestment(
+            type: .assetPurchase, symbol: "SHEL.L", quantity: 10,
+            unitPrice: 28, fxRate: Decimal(string: "1.19")!,
+            commission: 0, account: acc, date: Date(), note: "",
+            asset: gbpAsset
+        )
+
+        let txs = try ctx.fetch(FetchDescriptor<FinancialTransaction>())
+        let tx = try #require(txs.first { $0.assetSymbol == "SHEL.L" })
+        #expect(tx.assetFXRateFrom == "GBP")
+        #expect(tx.assetFXRateTo == "EUR")
+        #expect(tx.assetFXRate == Decimal(string: "1.19")!)
+    }
+}

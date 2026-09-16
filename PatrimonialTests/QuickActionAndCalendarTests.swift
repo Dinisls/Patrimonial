@@ -389,6 +389,26 @@ struct PortfolioSnapshotRecorderTests {
         #expect(PortfolioSnapshotRecorder.series(in: ctx).isEmpty)
     }
 
+    /// The silent half of the hole: `save()` could throw and the method
+    /// returned `true` regardless, so `true` no longer meant "on disk". With a
+    /// store that cannot hold a `PortfolioSnapshot`, a fully priced portfolio
+    /// must report `false` — the same-day retry (a later revision, or a reopen)
+    /// is what recovers, and it can only fire because the caller was told the
+    /// truth.
+    @Test func afailedSaveReportsFalseNotTrue() async throws {
+        let container = try PersistenceController.makeContainer(inMemory: true)
+        let ctx = container.mainContext
+        let (vm, accounts) = try await setUp(ctx, priced: true)
+
+        struct SaveRefused: Error {}
+        // A fully priced portfolio, but the store refuses the write. Before the
+        // fix this returned true regardless; now the caller is told false.
+        #expect(!PortfolioSnapshotRecorder.record(
+            holdings: vm.holdings, accounts: accounts, in: ctx,
+            save: { _ in throw SaveRefused() }
+        ))
+    }
+
     /// An empty app records nothing — a row of zeros would draw a flat line at
     /// zero for as long as it took to add a first position.
     @Test func anEmptyPortfolioRecordsNothing() async throws {

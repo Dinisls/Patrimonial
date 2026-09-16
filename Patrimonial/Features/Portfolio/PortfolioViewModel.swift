@@ -145,11 +145,51 @@ final class PortfolioViewModel {
             perAccountHoldings = PortfolioCalculator.perAccountHoldings(
                 from: investmentTx, unified: computed
             )
+            publishToWidget()
         } catch {
             self.error = error.localizedDescription
         }
 
         isLoading = false
+    }
+
+    private func publishToWidget() {
+        let open = openHoldings
+        let totalVal = open.reduce(Decimal.zero) { $0 + ($1.marketValueEUR ?? 0) }
+        let totalCst = PortfolioCalculator.totalCost(open)
+        let dayChange = PortfolioCalculator.dayChangeTotal(open)
+
+        let top = open
+            .filter { $0.marketValueEUR != nil }
+            .sorted { ($0.marketValueEUR ?? 0) > ($1.marketValueEUR ?? 0) }
+            .prefix(5)
+            .map { h in
+                let mv = h.marketValueEUR ?? 0
+                let dayPct: Decimal? = if let dc = h.dayChangeEUR, mv > 0 {
+                    (dc / mv) * 100
+                } else {
+                    nil
+                }
+                return WidgetDataBridge.Position(
+                    symbol: h.assetSymbol,
+                    name: h.assetSymbol,
+                    value: mv,
+                    dayChangePercent: dayPct,
+                    weight: totalVal > 0 ? (mv / totalVal) * 100 : 0
+                )
+            }
+
+        let dcValue = dayChange?.value ?? 0
+        let dcPercent: Decimal = totalVal > 0 ? (dcValue / totalVal) * 100 : 0
+        WidgetDataBridge.write(WidgetDataBridge.PortfolioSummary(
+            totalValue: totalVal,
+            totalCost: totalCst,
+            dayChangeAbsolute: dcValue,
+            dayChangePercent: dcPercent,
+            positionCount: open.count,
+            topPositions: top,
+            updatedAt: Date()
+        ))
     }
 
     /// Listing → class, from the stored `Asset` rows. Missing entries stay
@@ -310,6 +350,8 @@ final class PortfolioViewModel {
         tx.assetQuantity = quantity
         tx.assetUnitPrice = unitPrice
         tx.assetFXRate = fxRate
+        tx.assetFXRateFrom = asset?.currency ?? "EUR"
+        tx.assetFXRateTo = "EUR"
         tx.commission = commission
 
         ctx.insert(tx)
@@ -396,6 +438,7 @@ final class PortfolioViewModel {
         }
 
         priceStore?.register(incoming, currency: result.currency)
+        priceStore?.registerAssetClass(incoming, result.assetClass)
 
         let descriptor = FetchDescriptor<Asset>(
             predicate: #Predicate { $0.symbol == symbol }

@@ -6,11 +6,21 @@ struct AccountsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var activeSheet: MovementsSheet?
     @AppStorage("appTheme") private var appTheme = "system"
+    @State private var accountPendingDeletion: Account?
+    @State private var showDeleteOptions = false
+    @State private var showDeleteConfirm = false
+    @State private var showMoveSheet = false
+    @State private var deleteError: String?
 
     private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     private var totalBalance: Decimal {
         accounts.reduce(0) { $0 + $1.balance }
+    }
+
+    private var otherAccounts: [Account] {
+        guard let pending = accountPendingDeletion else { return [] }
+        return accounts.filter { $0.id != pending.id }
     }
 
     var body: some View {
@@ -49,8 +59,16 @@ struct AccountsView: View {
                                     .buttonStyle(.plain)
                                     .contextMenu {
                                         Button(role: .destructive) {
-                                            modelContext.delete(account)
-                                            try? modelContext.save()
+                                            accountPendingDeletion = account
+                                            let vm = AccountsViewModel(modelContext: modelContext)
+                                            let impact = vm.deletionImpact(for: account)
+                                            if impact.hasInvestments && otherAccounts.count > 0 {
+                                                showDeleteOptions = true
+                                            } else if impact.hasInvestments {
+                                                showDeleteConfirm = true
+                                            } else {
+                                                showDeleteConfirm = true
+                                            }
                                         } label: {
                                             Label(String(localized: "action_delete"), systemImage: "trash")
                                         }
@@ -118,7 +136,86 @@ struct AccountsView: View {
                     TransferFormView()
                 }
             }
+            .confirmationDialog(
+                deleteOptionsTitle,
+                isPresented: $showDeleteOptions,
+                titleVisibility: .visible
+            ) {
+                Button("Mover investimentos para outra conta") {
+                    showMoveSheet = true
+                }
+                Button("Apagar tudo", role: .destructive) {
+                    showDeleteConfirm = true
+                }
+                Button("Cancelar", role: .cancel) {
+                    accountPendingDeletion = nil
+                }
+            }
+            .confirmationDialog(
+                deleteConfirmTitle,
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Apagar", role: .destructive) {
+                    guard let acc = accountPendingDeletion else { return }
+                    let vm = AccountsViewModel(modelContext: modelContext)
+                    do {
+                        try vm.deleteWithEverything(acc)
+                    } catch {
+                        deleteError = error.localizedDescription
+                    }
+                    accountPendingDeletion = nil
+                }
+                Button("Cancelar", role: .cancel) {
+                    accountPendingDeletion = nil
+                }
+            }
+            .sheet(isPresented: $showMoveSheet) {
+                if let acc = accountPendingDeletion {
+                    MoveInvestmentsSheet(
+                        source: acc,
+                        destinations: otherAccounts,
+                        modelContext: modelContext
+                    ) {
+                        accountPendingDeletion = nil
+                    }
+                }
+            }
+            .alert("Erro", isPresented: .init(
+                get: { deleteError != nil },
+                set: { if !$0 { deleteError = nil } }
+            )) {
+                Button("OK") { deleteError = nil }
+            } message: {
+                Text(deleteError ?? "")
+            }
         }
+    }
+
+    private var deleteOptionsTitle: String {
+        guard let acc = accountPendingDeletion else { return "" }
+        let vm = AccountsViewModel(modelContext: modelContext)
+        let impact = vm.deletionImpact(for: acc)
+        let symbols = impact.symbols.joined(separator: ", ")
+        return "A conta \"\(acc.name)\" tem \(impact.investmentCount) transações de investimento (\(symbols)). O que fazer?"
+    }
+
+    private var deleteConfirmTitle: String {
+        guard let acc = accountPendingDeletion else { return "" }
+        let vm = AccountsViewModel(modelContext: modelContext)
+        let impact = vm.deletionImpact(for: acc)
+        if !impact.hasInvestments {
+            return "Apagar a conta \"\(acc.name)\" e as suas \(impact.nonInvestmentCount) transações?"
+        }
+        var lines = ["Apagar a conta \"\(acc.name)\" e todas as suas transações?"]
+        for change in impact.positionChanges {
+            if change.disappears {
+                lines.append("\(change.symbol): posição desaparece (\(change.currentQuantity) unidades)")
+            } else {
+                lines.append("\(change.symbol): \(change.currentQuantity) → \(change.newQuantity) unidades")
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var headerSection: some View {
@@ -126,6 +223,90 @@ struct AccountsView: View {
             .font(.system(.largeTitle, design: .default, weight: .bold))
             .padding(.horizontal, 16)
             .padding(.top, 8)
+    }
+}
+
+// MARK: - Move Investments Sheet
+
+struct MoveInvestmentsSheet: View {
+    let source: Account
+    let destinations: [Account]
+    let modelContext: ModelContext
+    let onDismiss: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    let vm = AccountsViewModel(modelContext: modelContext)
+                    let delta = vm.moveBalanceDelta(for: source)
+                    let symbols = vm.deletionImpact(for: source).symbols.joined(separator: ", ")
+                    Text("Mover \(symbols) da conta \"\(source.name)\" para:")
+                        .font(.subheadline)
+                    if delta != 0 {
+                        Text("O saldo da conta de destino será ajustado em \(CurrencyFormatter.format(delta)).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Escolher conta de destino") {
+                    ForEach(destinations) { dest in
+                        Button {
+                            moveAndDelete(to: dest)
+                        } label: {
+                            HStack {
+                                Image(systemName: dest.icon)
+                                    .foregroundStyle(Color(hex: dest.colorHex))
+                                VStack(alignment: .leading) {
+                                    Text(dest.name)
+                                    let vm = AccountsViewModel(modelContext: modelContext)
+                                    let delta = vm.moveBalanceDelta(for: source)
+                                    Text("Saldo: \(CurrencyFormatter.format(dest.balance)) → \(CurrencyFormatter.format(dest.balance + delta))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .tint(.primary)
+                    }
+                }
+            }
+            .navigationTitle("Mover Investimentos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") {
+                        onDismiss()
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Erro", isPresented: .init(
+                get: { error != nil },
+                set: { if !$0 { error = nil } }
+            )) {
+                Button("OK") { error = nil }
+            } message: {
+                Text(error ?? "")
+            }
+        }
+    }
+
+    private func moveAndDelete(to destination: Account) {
+        let vm = AccountsViewModel(modelContext: modelContext)
+        do {
+            try vm.moveInvestmentsAndDelete(from: source, to: destination)
+            onDismiss()
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 

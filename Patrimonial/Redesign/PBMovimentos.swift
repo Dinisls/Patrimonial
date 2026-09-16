@@ -131,6 +131,10 @@ struct AccountScreen: View {
     @State private var showEditAccount = false
     @State private var editTx: PBTx? = nil
     @State private var scrubValue: Double? = nil
+    @State private var showDeleteOptions = false
+    @State private var showDeleteConfirm = false
+    @State private var showMoveSheet = false
+    @State private var deleteError: String?
 
     private var acc: PBAccount? { store.accounts.first { $0.id == id } }
     private var accountTx: [PBTx] { guard let acc else { return [] }; return store.transactions(forAccount: acc.name) }
@@ -196,7 +200,14 @@ struct AccountScreen: View {
                                 Label("Editar Conta", systemImage: "pencil")
                             }
                             Divider()
-                            Button(role: .destructive) { store.deleteAccount(id: id) } label: {
+                            Button(role: .destructive) {
+                                let count = store.investmentCountForAccount(id: id)
+                                if count > 0 && store.accounts.count > 1 {
+                                    showDeleteOptions = true
+                                } else {
+                                    showDeleteConfirm = true
+                                }
+                            } label: {
                                 Label("Apagar Conta", systemImage: "trash")
                             }
                         } label: {
@@ -226,6 +237,45 @@ struct AccountScreen: View {
                     TransactionEditSheet(tx: tx)
                         .environment(store)
                         .id(tx.txID)
+                }
+                .confirmationDialog(
+                    deleteOptionsTitle,
+                    isPresented: $showDeleteOptions,
+                    titleVisibility: .visible
+                ) {
+                    Button("Mover investimentos para outra conta") {
+                        showMoveSheet = true
+                    }
+                    Button("Apagar tudo", role: .destructive) {
+                        showDeleteConfirm = true
+                    }
+                    Button("Cancelar", role: .cancel) {}
+                }
+                .confirmationDialog(
+                    deleteConfirmTitle,
+                    isPresented: $showDeleteConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button("Apagar", role: .destructive) {
+                        do {
+                            try store.deleteAccountWithEverything(id: id)
+                        } catch {
+                            deleteError = error.localizedDescription
+                        }
+                    }
+                    Button("Cancelar", role: .cancel) {}
+                }
+                .sheet(isPresented: $showMoveSheet) {
+                    PBMoveInvestmentsSheet(sourceID: id)
+                        .environment(store)
+                }
+                .alert("Erro", isPresented: .init(
+                    get: { deleteError != nil },
+                    set: { if !$0 { deleteError = nil } }
+                )) {
+                    Button("OK") { deleteError = nil }
+                } message: {
+                    Text(deleteError ?? "")
                 }
             } else {
                 ContentUnavailableView("Conta não encontrada", systemImage: "xmark.circle")
@@ -332,6 +382,30 @@ struct AccountScreen: View {
         .buttonStyle(.plain)
     }
 
+    private var deleteOptionsTitle: String {
+        guard let impact = store.deletionImpact(forAccountID: id) else { return "" }
+        let symbols = impact.symbols.joined(separator: ", ")
+        let name = acc?.name ?? ""
+        return "A conta \"\(name)\" tem \(impact.investmentCount) transações de investimento (\(symbols)). O que fazer?"
+    }
+
+    private var deleteConfirmTitle: String {
+        guard let impact = store.deletionImpact(forAccountID: id) else { return "" }
+        let name = acc?.name ?? ""
+        if !impact.hasInvestments {
+            return "Apagar a conta \"\(name)\" e as suas \(impact.nonInvestmentCount) transações?"
+        }
+        var lines = ["Apagar a conta \"\(name)\" e todas as suas transações?"]
+        for change in impact.positionChanges {
+            if change.disappears {
+                lines.append("\(change.symbol): posição desaparece (\(change.currentQuantity) unidades)")
+            } else {
+                lines.append("\(change.symbol): \(change.currentQuantity) → \(change.newQuantity) unidades")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private var transactionsSection: some View {
         VStack(alignment: .leading, spacing: 7) {
             Text("TRANSAÇÕES DA CONTA")
@@ -359,6 +433,92 @@ struct AccountScreen: View {
                 .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 16)
             }
+        }
+    }
+}
+
+// MARK: - Move Investments Sheet (Redesign)
+
+struct PBMoveInvestmentsSheet: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let sourceID: String
+    @State private var error: String?
+
+    private var sourceName: String {
+        store.accounts.first { $0.id == sourceID }?.name ?? ""
+    }
+
+    private var destinations: [PBAccount] {
+        store.accounts.filter { $0.id != sourceID }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    let impact = store.deletionImpact(forAccountID: sourceID)
+                    let symbols = impact?.symbols.joined(separator: ", ") ?? ""
+                    Text("Mover \(symbols) da conta \"\(sourceName)\" para:")
+                        .font(.subheadline)
+                    let delta = store.moveBalanceDelta(forAccountID: sourceID)
+                    if delta != 0 {
+                        Text("O saldo da conta de destino será ajustado em \(Fmt.eur(NSDecimalNumber(decimal: delta).doubleValue)).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Escolher conta de destino") {
+                    ForEach(destinations) { dest in
+                        Button {
+                            moveAndDelete(to: dest.id)
+                        } label: {
+                            HStack {
+                                Circle()
+                                    .fill(dest.color)
+                                    .frame(width: 10, height: 10)
+                                VStack(alignment: .leading) {
+                                    Text(dest.name)
+                                    let delta = store.moveBalanceDelta(forAccountID: sourceID)
+                                    let newBalance = dest.balance + NSDecimalNumber(decimal: delta).doubleValue
+                                    Text("Saldo: \(Fmt.eur(dest.balance)) → \(Fmt.eur(newBalance))")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .tint(PB.text)
+                    }
+                }
+            }
+            .navigationTitle("Mover Investimentos")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }
+                }
+            }
+            .alert("Erro", isPresented: .init(
+                get: { error != nil },
+                set: { if !$0 { error = nil } }
+            )) {
+                Button("OK") { error = nil }
+            } message: {
+                Text(error ?? "")
+            }
+        }
+    }
+
+    private func moveAndDelete(to destinationID: String) {
+        do {
+            try store.moveInvestmentsAndDeleteAccount(sourceID: sourceID, destinationID: destinationID)
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }

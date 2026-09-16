@@ -43,7 +43,7 @@ struct InvestmentTransactionProtectionTests {
         let tx = try makePurchase(in: ctx, account: acc)
         let store = makeStore(ctx)
 
-        store.updateTransaction(
+        try store.updateTransaction(
             id: tx.id, title: "Qualquer coisa", amount: 999, isIncome: false,
             category: .food, account: "Corretora", date: "1/1/2026"
         )
@@ -66,7 +66,7 @@ struct InvestmentTransactionProtectionTests {
         let tx = try makePurchase(in: ctx, account: acc)
         let store = makeStore(ctx)
 
-        store.updateTransaction(
+        try store.updateTransaction(
             id: tx.id, title: "x", amount: 10, isIncome: true,
             category: .income, account: "Corretora", date: "1/1/2026"
         )
@@ -82,7 +82,7 @@ struct InvestmentTransactionProtectionTests {
         ctx.insert(acc)
 
         let tx = try makePurchase(in: ctx, account: acc)
-        makeStore(ctx).updateTransaction(
+        try makeStore(ctx).updateTransaction(
             id: tx.id, title: "x", amount: 1, isIncome: false,
             category: .food, account: "Corretora", date: "1/1/2026"
         )
@@ -103,7 +103,7 @@ struct InvestmentTransactionProtectionTests {
         ctx.insert(other)
 
         let tx = try makePurchase(in: ctx, account: acc)
-        makeStore(ctx).updateTransactionMeta(id: tx.id, account: "Outra", date: "1/1/2026")
+        try makeStore(ctx).updateTransactionMeta(id: tx.id, account: "Outra", date: "1/1/2026")
 
         #expect(tx.sourceAccount?.name == "Corretora")
     }
@@ -123,7 +123,7 @@ struct InvestmentTransactionProtectionTests {
         ), listing: ListingID(symbol: "NVDA")))
         try ctx.save()
 
-        makeStore(ctx).deleteTransaction(id: tx.id)
+        try makeStore(ctx).deleteTransaction(id: tx.id)
 
         #expect(try ctx.fetch(FetchDescriptor<FinancialTransaction>()).isEmpty)
         #expect(try ctx.fetch(FetchDescriptor<Asset>()).isEmpty)
@@ -143,7 +143,7 @@ struct InvestmentTransactionProtectionTests {
         ctx.insert(tx)
         try ctx.save()
 
-        makeStore(ctx).updateTransaction(
+        try makeStore(ctx).updateTransaction(
             id: tx.id, title: "Almoço", amount: 35, isIncome: false,
             category: .food, account: "Conta", date: "1/1/2026"
         )

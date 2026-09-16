@@ -225,6 +225,57 @@ struct ListingBackfill {
         return fixed
     }
 
+    // MARK: - FX rate direction backfill
+
+    struct FXDirectionReport: Equatable {
+        var filled = 0
+        var unresolved: Set<String> = []
+    }
+
+    /// Fills in `assetFXRateFrom` / `assetFXRateTo` for investment transactions
+    /// written before those fields existed.
+    ///
+    /// The direction is not a guess: every investment transaction names a symbol,
+    /// and the symbol's `Asset` row carries the currency. The target is always
+    /// EUR — the app has never converted into anything else. So the pair is
+    /// `(asset.currency, "EUR")`, and the `assetFXRate` Decimal does not change.
+    ///
+    /// Idempotent: only rows with a non-nil `assetFXRate` and a nil
+    /// `assetFXRateFrom` are touched. Running twice cannot produce a different
+    /// answer than running once.
+    @discardableResult
+    static func backfillFXRateDirection(in ctx: ModelContext) -> FXDirectionReport {
+        var report = FXDirectionReport()
+
+        guard let assets = try? ctx.fetch(FetchDescriptor<Asset>()) else { return report }
+        var currencyBySymbol: [String: String] = [:]
+        for asset in assets where !asset.currency.isEmpty {
+            currencyBySymbol[ListingID(symbol: asset.symbol).symbol] = asset.currency
+        }
+
+        guard let transactions = try? ctx.fetch(FetchDescriptor<FinancialTransaction>())
+        else { return report }
+
+        for tx in transactions {
+            guard tx.assetFXRate != nil,
+                  tx.assetFXRateFrom == nil,
+                  let symbol = tx.assetSymbol
+            else { continue }
+
+            let key = ListingID(symbol: symbol).symbol
+            guard let currency = currencyBySymbol[key] else {
+                report.unresolved.insert(key)
+                continue
+            }
+            tx.assetFXRateFrom = currency
+            tx.assetFXRateTo = "EUR"
+            report.filled += 1
+        }
+
+        if report.filled > 0 { try? ctx.save() }
+        return report
+    }
+
     /// Whether any transaction for this ticker is still unattributed.
     static func hasUnattributedRows(forSymbol symbol: String, in ctx: ModelContext) -> Bool {
         let wanted = ListingID(symbol: symbol).symbol

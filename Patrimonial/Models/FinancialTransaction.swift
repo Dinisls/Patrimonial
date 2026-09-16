@@ -105,10 +105,34 @@ final class FinancialTransaction {
     var assetQuantity: Decimal? = nil
     var assetUnitPrice: Decimal? = nil
     var assetFXRate: Decimal? = nil
+    /// The currency the rate converts *from* (the asset's native currency).
+    /// Together with `assetFXRateTo` they record the direction that the bare
+    /// `assetFXRate` Decimal cannot carry on its own. Optional with a nil
+    /// default so existing stores open without a schema version bump — the
+    /// backfill fills them in on first launch, exactly as `assetMIC` was added.
+    var assetFXRateFrom: String? = nil
+    /// The currency the rate converts *into* — always "EUR" in this app.
+    var assetFXRateTo: String? = nil
     var commission: Decimal? = nil
 
     var sourceAccount: Account?
     var destinationAccount: Account?
+
+    /// The typed FX rate, rebuilt from the three stored scalars.
+    /// Nil when the direction was never recorded (pre-backfill rows that the
+    /// backfill could not resolve) or when any of the three parts is missing.
+    var historicalFXRate: FXRate? {
+        guard let rate = assetFXRate,
+              let from = assetFXRateFrom,
+              let to = assetFXRateTo
+        else { return nil }
+        return FXRate(from: from, to: to, value: rate)
+    }
+
+    var isInvestmentTransaction: Bool {
+        assetSymbol != nil && assetQuantity != nil && assetUnitPrice != nil && assetFXRate != nil &&
+        (type == .assetPurchase || type == .assetSale || type == .dividend)
+    }
 
     init(
         type: TransactionType,

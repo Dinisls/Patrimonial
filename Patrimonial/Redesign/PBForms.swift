@@ -10,6 +10,17 @@ private extension View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
     }
+
+    /// Shown when a mutation's write to disk failed. The sheet stays open on
+    /// purpose — dismissing it would say "saved" when nothing was — so the
+    /// message tells the user to try again, and the fields are still filled in.
+    func pbSaveErrorAlert(_ isPresented: Binding<Bool>) -> some View {
+        alert("Não foi possível guardar", isPresented: isPresented) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("A alteração não foi gravada. Tenta novamente.")
+        }
+    }
 }
 
 private let weekdayNames: [String] = {
@@ -124,6 +135,7 @@ struct CategoryFormSheet: View {
     @State private var colorHex: UInt = 0x3F7BE0
     @State private var isExpense: Bool
     @State private var isIncome: Bool
+    @State private var saveFailed = false
 
     private let symbols = [
         "tag", "cart", "star", "heart", "house", "car", "airplane", "gift",
@@ -199,16 +211,21 @@ struct CategoryFormSheet: View {
             }
         }
         .tint(PB.accent)
+        .pbSaveErrorAlert($saveFailed)
     }
 
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        store.addCustomCategory(name: trimmed, symbol: symbol, colorHex: colorHex,
-                                isExpense: isExpense, isIncome: isIncome)
-        if let created = store.customCategories.last(where: { $0.name == trimmed }) {
-            onCreated(created)
+        do {
+            try store.addCustomCategory(name: trimmed, symbol: symbol, colorHex: colorHex,
+                                        isExpense: isExpense, isIncome: isIncome)
+            if let created = store.customCategories.last(where: { $0.name == trimmed }) {
+                onCreated(created)
+            }
+            dismiss()
+        } catch {
+            saveFailed = true
         }
-        dismiss()
     }
 }
 
@@ -228,6 +245,7 @@ struct TransactionFormSheet: View {
     @State private var recurrence: Recurrence = .none
     @State private var recurrenceDay: Int = 1
     @State private var recurrenceDay2: Int = 15
+    @State private var saveFailed = false
 
     init(prefilledAccount: String? = nil, initialIsIncome: Bool = false) {
         self.prefilledAccount = prefilledAccount
@@ -322,21 +340,26 @@ struct TransactionFormSheet: View {
             }
         }
         .tint(PB.accent)
+        .pbSaveErrorAlert($saveFailed)
         .onAppear { if account.isEmpty { account = prefilledAccount ?? store.accounts.first?.name ?? "" } }
     }
 
     private func save() {
         let (cat, customID) = resolvedCategory()
-        store.addTransaction(
-            title: title.trimmingCharacters(in: .whitespaces),
-            amount: amountValue, isIncome: isIncome,
-            category: cat, customCatID: customID,
-            account: account, date: dateString(date),
-            recurrence: recurrence,
-            recurrenceDay: recurrence != .none ? recurrenceDay : nil,
-            recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
-        )
-        dismiss()
+        do {
+            try store.addTransaction(
+                title: title.trimmingCharacters(in: .whitespaces),
+                amount: amountValue, isIncome: isIncome,
+                category: cat, customCatID: customID,
+                account: account, date: dateString(date),
+                recurrence: recurrence,
+                recurrenceDay: recurrence != .none ? recurrenceDay : nil,
+                recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
+            )
+            dismiss()
+        } catch {
+            saveFailed = true
+        }
     }
     private func resolvedCategory() -> (TxCategory, String?) {
         switch catSelection {
@@ -367,6 +390,7 @@ struct TransactionEditSheet: View {
     @State private var recurrenceDay: Int
     @State private var recurrenceDay2: Int
     @State private var showDeleteConfirm = false
+    @State private var saveFailed = false
 
     private var amountValue: Double { Self.parseAmountField(amount) ?? 0 }
     private var canSave: Bool { !title.trimmingCharacters(in: .whitespaces).isEmpty && amountValue > 0 && !account.isEmpty }
@@ -493,10 +517,16 @@ struct TransactionEditSheet: View {
             }
         }
         .tint(PB.accent)
+        .pbSaveErrorAlert($saveFailed)
         .confirmationDialog("Apagar esta transação?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("Apagar", role: .destructive) {
-                if let id = tx.txID { store.deleteTransaction(id: id) }
-                dismiss()
+                guard let id = tx.txID else { dismiss(); return }
+                do {
+                    try store.deleteTransaction(id: id)
+                    dismiss()
+                } catch {
+                    saveFailed = true
+                }
             }
         }
     }
@@ -577,22 +607,26 @@ struct TransactionEditSheet: View {
         guard let id = tx.txID else { dismiss(); return }
         // Belt and braces: the button does not exist for investments.
         if tx.isInvestment { dismiss(); return }
-        if tx.cat == .transfer {
-            store.updateTransactionMeta(id: id, account: account, date: dateString(date))
-        } else {
-            let (cat, customID) = resolvedCategory()
-            store.updateTransaction(
-                id: id,
-                title: title.trimmingCharacters(in: .whitespaces),
-                amount: amountValue, isIncome: isIncome,
-                category: cat, customCatID: customID,
-                account: account, date: dateString(date),
-                recurrence: recurrence,
-                recurrenceDay: recurrence != .none ? recurrenceDay : nil,
-                recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
-            )
+        do {
+            if tx.cat == .transfer {
+                try store.updateTransactionMeta(id: id, account: account, date: dateString(date))
+            } else {
+                let (cat, customID) = resolvedCategory()
+                try store.updateTransaction(
+                    id: id,
+                    title: title.trimmingCharacters(in: .whitespaces),
+                    amount: amountValue, isIncome: isIncome,
+                    category: cat, customCatID: customID,
+                    account: account, date: dateString(date),
+                    recurrence: recurrence,
+                    recurrenceDay: recurrence != .none ? recurrenceDay : nil,
+                    recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
+                )
+            }
+            dismiss()
+        } catch {
+            saveFailed = true
         }
-        dismiss()
     }
 
     private func resolvedCategory() -> (TxCategory, String?) {
@@ -619,6 +653,7 @@ struct TransferFormSheet: View {
     @State private var amount = ""
     @State private var note = ""
     @State private var date = Date()
+    @State private var saveFailed = false
 
     private func d(_ s: String) -> Double { Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0 }
     private var destAccounts: [PBAccount] { store.accounts.filter { $0.name != fromAccount } }
@@ -658,6 +693,7 @@ struct TransferFormSheet: View {
             }
         }
         .tint(PB.accent)
+        .pbSaveErrorAlert($saveFailed)
         .onAppear {
             fromAccount = prefilledFromAccount ?? store.accounts.first?.name ?? ""
             toAccount = destAccounts.first?.name ?? ""
@@ -666,9 +702,13 @@ struct TransferFormSheet: View {
 
     private func save() {
         let f = DateFormatter(); f.locale = Locale(identifier: "pt_PT"); f.dateFormat = "d/M/yyyy"
-        store.addTransfer(fromAccount: fromAccount, toAccount: toAccount,
-                          amount: d(amount), note: note, date: f.string(from: date))
-        dismiss()
+        do {
+            try store.addTransfer(fromAccount: fromAccount, toAccount: toAccount,
+                                  amount: d(amount), note: note, date: f.string(from: date))
+            dismiss()
+        } catch {
+            saveFailed = true
+        }
     }
 }
 
@@ -681,6 +721,7 @@ struct AccountFormSheet: View {
     @State private var sub = ""
     @State private var balance = ""
     @State private var colorHex: UInt = 0x3F7BE0
+    @State private var saveFailed = false
 
     private let palette: [UInt] = [0xE0563C, 0xD9A24A, 0x2FA86E, 0x3F7BE0, 0x8A6FD0, 0xD45C92]
     private var canSave: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -712,16 +753,21 @@ struct AccountFormSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Guardar") {
-                        store.addAccount(name: name.trimmingCharacters(in: .whitespaces),
-                                         sub: sub.isEmpty ? "Conta" : sub,
-                                         kind: .cash, colorHex: colorHex,
-                                         initialBalance: Double(balance.replacingOccurrences(of: ",", with: ".")) ?? 0)
-                        dismiss()
+                        do {
+                            try store.addAccount(name: name.trimmingCharacters(in: .whitespaces),
+                                                 sub: sub.isEmpty ? "Conta" : sub,
+                                                 kind: .cash, colorHex: colorHex,
+                                                 initialBalance: Double(balance.replacingOccurrences(of: ",", with: ".")) ?? 0)
+                            dismiss()
+                        } catch {
+                            saveFailed = true
+                        }
                     }.disabled(!canSave).fontWeight(.semibold)
                 }
             }
         }
         .tint(PB.accent)
+        .pbSaveErrorAlert($saveFailed)
     }
 }
 
@@ -734,6 +780,7 @@ struct AccountEditSheet: View {
     @State private var sub: String
     @State private var balance: String
     @State private var colorHex: UInt
+    @State private var saveFailed = false
 
     private let palette: [UInt] = [0xE0563C, 0xD9A24A, 0x2FA86E, 0x3F7BE0, 0x8A6FD0, 0xD45C92]
     private var canSave: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -773,18 +820,23 @@ struct AccountEditSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Guardar") {
-                        store.updateAccount(
-                            id: account.id,
-                            name: name.trimmingCharacters(in: .whitespaces),
-                            sub: sub,
-                            colorHex: colorHex,
-                            balance: Double(balance.replacingOccurrences(of: ",", with: ".")) ?? account.balance
-                        )
-                        dismiss()
+                        do {
+                            try store.updateAccount(
+                                id: account.id,
+                                name: name.trimmingCharacters(in: .whitespaces),
+                                sub: sub,
+                                colorHex: colorHex,
+                                balance: Double(balance.replacingOccurrences(of: ",", with: ".")) ?? account.balance
+                            )
+                            dismiss()
+                        } catch {
+                            saveFailed = true
+                        }
                     }.disabled(!canSave).fontWeight(.semibold)
                 }
             }
         }
         .tint(PB.accent)
+        .pbSaveErrorAlert($saveFailed)
     }
 }
