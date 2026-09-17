@@ -98,6 +98,7 @@ enum DataReset {
         // routing a ticker nothing refers to any more.
         priceStore?.reset()
         appStore?.clearInMemoryState()
+        UserDefaults.standard.removeObject(forKey: MonthlyRecapSchedule.defaultsKey)
     }
 
     @MainActor

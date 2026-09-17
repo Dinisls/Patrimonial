@@ -6,6 +6,7 @@ import SwiftUI
 // MARK: - Dashboard
 struct DashboardScreen: View {
     @Binding var selectedTab: Int
+    var onShowRecap: (() -> Void)?
     @Environment(AppStore.self) private var store
     @Environment(PriceStore.self) private var priceStore
     @AppStorage("appTheme") private var appTheme = "system"
@@ -29,6 +30,12 @@ struct DashboardScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 HStack(spacing: 4) {
+                    if onShowRecap != nil {
+                        Button { onShowRecap?() } label: {
+                            Image(systemName: "calendar.badge.clock")
+                                .font(.system(size: 16, weight: .medium))
+                        }
+                    }
                     Button {
                         appTheme = appTheme == "dark" ? "light" : "dark"
                     } label: {
@@ -329,7 +336,8 @@ struct CashflowScreen: View {
             VStack(spacing: 16) {
                 if months.count > 1 { monthSelector }
                 summaryCard
-                categoriesSection
+                categoriesSection(isExpense: false)
+                categoriesSection(isExpense: true)
                 topMovements
                 Spacer(minLength: 100)
             }
@@ -411,18 +419,18 @@ struct CashflowScreen: View {
         .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
     }
 
-    private var categoriesSection: some View {
+    private func categoriesSection(isExpense: Bool) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text("DESPESAS POR CATEGORIA")
+            Text(isExpense ? "DESPESAS POR CATEGORIA" : "RECEITAS POR ORIGEM")
                 .font(.system(size: 12.5, weight: .semibold))
                 .tracking(0.5)
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)
                 .padding(.top, 8)
 
-            let cats = store.categoryTotalsFor(isExpense: true, month: sel.month, year: sel.year)
+            let cats = store.categoryTotalsFor(isExpense: isExpense, month: sel.month, year: sel.year)
             if cats.isEmpty {
-                Text("Sem despesas neste mês")
+                Text(isExpense ? "Sem despesas neste mês" : "Sem receitas neste mês")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -445,7 +453,7 @@ struct CashflowScreen: View {
                                         .fill(Color(UIColor.systemFill))
                                         .frame(height: 6)
                                     RoundedRectangle(cornerRadius: 3)
-                                        .fill(PB.accent)
+                                        .fill(isExpense ? PB.accent : PB.green)
                                         .frame(width: geo.size.width * cat.fraction, height: 6)
                                 }
                             }

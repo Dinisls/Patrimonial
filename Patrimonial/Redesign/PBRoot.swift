@@ -27,6 +27,7 @@ struct PBRootView: View {
     @State private var showTransfer = false
     @State private var showNewAccount = false
     @Environment(\.deepLink) private var deepLink
+    @State private var recapData: MonthlyRecap?
 
     private var colorScheme: ColorScheme? {
         switch appTheme { case "light": .light; case "dark": .dark; default: nil }
@@ -36,7 +37,11 @@ struct PBRootView: View {
         ZStack {
             TabView(selection: $selectedTab) {
                 Tab("Resumo", systemImage: "house.fill", value: 0) {
-                    NavigationStack(path: $dashboardPath) { DashboardScreen(selectedTab: $selectedTab) }
+                    NavigationStack(path: $dashboardPath) {
+                        DashboardScreen(selectedTab: $selectedTab) {
+                            showPreviousMonthRecap()
+                        }
+                    }
                 }
                 Tab("Contas", systemImage: "creditcard.fill", value: 1) {
                     NavigationStack { AccountsListScreen() }
@@ -84,6 +89,19 @@ struct PBRootView: View {
             store.bind(modelContext)
             PBDebug.seedEditSheetRows(into: store)
             publishCashToWidget()
+            if let due = MonthlyRecapSchedule.due(store: store) {
+                recapData = MonthlyRecap.build(month: due.month, year: due.year,
+                                               store: store, context: modelContext)
+                if recapData == nil {
+                    MonthlyRecapSchedule.markShown(month: due.month, year: due.year)
+                }
+            }
+        }
+        .fullScreenCover(item: $recapData) { recap in
+            MonthlyRecapStoryView(recap: recap) {
+                MonthlyRecapSchedule.markShown(month: recap.month, year: recap.year)
+                recapData = nil
+            }
         }
         .onChange(of: deepLink) { _, link in
             guard let link else { return }
@@ -113,6 +131,12 @@ struct PBRootView: View {
 
     private func publishCashToWidget() {
         WidgetDataBridge.publishCash(from: modelContext)
+    }
+
+    private func showPreviousMonthRecap() {
+        let prev = MonthlyRecapSchedule.previousMonth(of: Date())
+        recapData = MonthlyRecap.build(month: prev.month, year: prev.year,
+                                       store: store, context: modelContext)
     }
 }
 
