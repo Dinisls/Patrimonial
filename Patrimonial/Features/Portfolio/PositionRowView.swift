@@ -5,6 +5,15 @@ struct PositionRowView: View {
     private static let log = Logger(subsystem: "pt.patrimonial", category: "row-layout")
     let holding: Holding
     let privacyMode: Bool
+    /// The change over the period selected in the header, already computed by
+    /// the ViewModel from the same inputs the header total uses. Nil means the
+    /// position has no reference close inside the period, and the row says so
+    /// with a dash rather than falling back to some other number.
+    let periodChange: PortfolioViewModel.PeriodChange?
+    /// The period that figure belongs to, e.g. "1M". Load-bearing: `+3,42%`
+    /// with no interval named is a different claim every time the picker moves,
+    /// and the row is the only place that can say which one it is.
+    let periodLabel: String
     /// Computed by the store against the market calendar, not derived here —
     /// the view has no business deciding whether a market is open.
     let freshness: QuoteFreshness?
@@ -78,18 +87,27 @@ struct PositionRowView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                // The period's move, not the lifetime P/L. Whatever interval
+                // the header is showing, this line reports the same one — a row
+                // that answers a different question from the total above it is
+                // how a screen starts lying quietly.
                 if !privacyMode {
-                    if let plPct = holding.unrealizedPLPercent {
-                        let positive = plPct >= 0
-                        Text(formatDecimalPct(plPct))
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(positive ? PB.pos : PB.neg)
-                            .fixedSize()
-                    } else {
-                        Text("—")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text(periodLabel)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(PB.text2)
+                        if let change = periodChange {
+                            let positive = change.percent >= 0
+                            Text(formatDecimalPct(change.percent))
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(positive ? PB.pos : PB.neg)
+                        } else {
+                            Text("—")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    .fixedSize()
                 }
 
                 // Everything qualifying the price, on one line. Two lines would

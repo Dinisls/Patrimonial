@@ -32,6 +32,17 @@ final class AppStore {
         generateRecurringTransactions()
         loadTransactions()
         updateAccountChanges()
+        publishToWidget()
+    }
+
+    /// Every cash-side mutation ends here: `save()` reloads after a successful
+    /// write, and the debt screens — which write through their own context —
+    /// call `reload()` by hand for the same reason. Publishing from this one
+    /// place is what stops the widget showing balances from the last launch;
+    /// it used to be published only from the root view's `onAppear`.
+    private func publishToWidget() {
+        guard let ctx else { return }
+        WidgetDataBridge.publishCash(from: ctx)
     }
 
     // MARK: Custom Categories

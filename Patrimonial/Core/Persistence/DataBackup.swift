@@ -6,13 +6,43 @@ enum DataBackup {
     // MARK: - Exportable types
 
     struct Backup: Codable {
-        var version: Int = 1
+        /// 2 since debts were added. Nothing reads it yet; it is here so that a
+        /// future reader can tell a file that predates debts from one whose
+        /// owner simply has none.
+        var version: Int = 2
         var exportedAt: Date
         var accounts: [AccountDTO]
         var transactions: [TransactionDTO]
         var customCategories: [CustomCategoryDTO]
         var assets: [AssetDTO]
         var portfolioSnapshots: [PortfolioSnapshotDTO]
+        /// Optional, and it has to be: every backup exported before debts
+        /// existed has no such key, and a non-optional array would make the
+        /// synthesized decoder throw `keyNotFound` on it — an old backup that
+        /// suddenly refuses to restore. Nil means "this file predates debts",
+        /// which is the same thing as none for every purpose here.
+        var debts: [DebtDTO]?
+    }
+
+    struct DebtDTO: Codable {
+        var id: UUID
+        var counterparty: String
+        var note: String
+        var principal: Decimal
+        var direction: String
+        var openedAt: Date
+        var dueDate: Date?
+        var createdAt: Date
+        var payments: [DebtPaymentDTO]
+    }
+
+    struct DebtPaymentDTO: Codable {
+        var id: UUID
+        var amount: Decimal
+        var date: Date
+        var note: String
+        var accountID: UUID?
+        var transactionID: UUID?
     }
 
     struct AccountDTO: Codable {
@@ -91,6 +121,7 @@ enum DataBackup {
         let categories = (try? ctx.fetch(FetchDescriptor<CustomCategory>())) ?? []
         let assets = (try? ctx.fetch(FetchDescriptor<Asset>())) ?? []
         let snapshots = (try? ctx.fetch(FetchDescriptor<PortfolioSnapshot>())) ?? []
+        let debts = (try? ctx.fetch(FetchDescriptor<Debt>())) ?? []
 
         let backup = Backup(
             exportedAt: Date(),
@@ -144,6 +175,24 @@ enum DataBackup {
                     totalCost: s.totalCost, cashTotal: s.cashTotal,
                     createdAt: s.createdAt
                 )
+            },
+            debts: debts.map { d in
+                DebtDTO(
+                    id: d.id, counterparty: d.counterparty, note: d.note,
+                    principal: d.principal, direction: d.direction.rawValue,
+                    openedAt: d.openedAt, dueDate: d.dueDate,
+                    createdAt: d.createdAt,
+                    // Nested rather than a second top-level array: a payment
+                    // without its debt is meaningless, and nesting makes it
+                    // impossible to restore one without the other.
+                    payments: d.payments.map { p in
+                        DebtPaymentDTO(
+                            id: p.id, amount: p.amount, date: p.date,
+                            note: p.note, accountID: p.accountID,
+                            transactionID: p.transactionID
+                        )
+                    }
+                )
             }
         )
 
@@ -151,6 +200,17 @@ enum DataBackup {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         return try encoder.encode(backup)
+    }
+
+    enum RestoreError: LocalizedError, Equatable {
+        case unknownDebtDirection(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unknownDebtDirection(let raw):
+                "A cópia de segurança tem uma dívida de um tipo desconhecido (\(raw)). Atualiza a app e tenta outra vez."
+            }
+        }
     }
 
     // MARK: - Import
@@ -239,6 +299,35 @@ enum DataBackup {
             ctx.insert(snap)
         }
 
+        for dto in backup.debts ?? [] {
+            // An unknown direction is not a guess to be made: defaulting to
+            // `.iOwe` would turn money owed to the user into money they owe,
+            // and the restore would report success. The import fails instead,
+            // which is recoverable — the backup file is untouched.
+            guard let direction = DebtDirection(rawValue: dto.direction) else {
+                throw RestoreError.unknownDebtDirection(dto.direction)
+            }
+            let debt = Debt(
+                id: dto.id,
+                counterparty: dto.counterparty,
+                note: dto.note,
+                principal: dto.principal,
+                direction: direction,
+                openedAt: dto.openedAt,
+                dueDate: dto.dueDate,
+                createdAt: dto.createdAt
+            )
+            ctx.insert(debt)
+            for p in dto.payments {
+                let payment = DebtPayment(
+                    id: p.id, amount: p.amount, date: p.date, note: p.note,
+                    accountID: p.accountID, transactionID: p.transactionID
+                )
+                payment.debt = debt
+                ctx.insert(payment)
+            }
+        }
+
         try ctx.save()
 
         return ImportResult(
@@ -246,7 +335,8 @@ enum DataBackup {
             transactions: backup.transactions.count,
             customCategories: backup.customCategories.count,
             assets: backup.assets.count,
-            portfolioSnapshots: backup.portfolioSnapshots.count
+            portfolioSnapshots: backup.portfolioSnapshots.count,
+            debts: (backup.debts ?? []).count
         )
     }
 
@@ -256,5 +346,6 @@ enum DataBackup {
         let customCategories: Int
         let assets: Int
         let portfolioSnapshots: Int
+        let debts: Int
     }
 }

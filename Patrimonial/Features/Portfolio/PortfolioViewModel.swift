@@ -292,6 +292,49 @@ final class PortfolioViewModel {
         }
     }
 
+    /// The selected period's change for one position, in euros and in percent.
+    ///
+    /// The per-row figure and the header total are the **same** computation with
+    /// the same inputs — `periodChangeTotal` sums exactly what this returns.
+    /// Two independent derivations would be two chances to disagree, and a row
+    /// that contradicts the total above it is worse than no row at all.
+    ///
+    /// Nil whenever the position has no reference close inside the period: a
+    /// ticker whose history the cache has not reached, or one bought after the
+    /// cutoff with no candle behind it. The row shows a dash for those. It does
+    /// **not** fall back to the lifetime P/L — a number under a "1M" label has
+    /// to be a month's move or nothing.
+    struct PeriodChange: Equatable {
+        let eur: Decimal
+        let percent: Decimal
+    }
+
+    func periodChange(for holding: Holding) -> PeriodChange? {
+        let changeEUR: Decimal?
+        if selectedPeriod == .oneDay {
+            changeEUR = holding.dayChangeEUR
+        } else {
+            let cutoff = selectedPeriod.cutoffDate(from: now())
+            guard let lookup = referenceCloseLookup,
+                  let refClose = lookup(holding.listing, cutoff)
+            else { return nil }
+            changeEUR = holding.periodChangeEUR(
+                referenceClose: refClose,
+                periodStart: cutoff,
+                clampToReference: false,
+                sessionEnd: nil
+            )
+        }
+
+        guard let eur = changeEUR, let marketValue = holding.marketValueEUR else { return nil }
+        // The base is what the position was worth at the start of the period —
+        // today's value less the move. Dividing by today's value instead would
+        // understate every gain and overstate every loss.
+        let base = marketValue - eur
+        guard base > 0 else { return nil }
+        return PeriodChange(eur: eur, percent: (eur / base) * 100)
+    }
+
     // MARK: - Add investment transaction
 
     func addInvestment(

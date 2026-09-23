@@ -495,6 +495,8 @@ struct PortfolioScreen: View {
                             PositionRowView(
                                 holding: holding,
                                 privacyMode: viewModel.privacyMode,
+                                periodChange: viewModel.periodChange(for: holding),
+                                periodLabel: viewModel.selectedPeriod.rawValue,
                                 freshness: priceStore.quote(for: holding.listing) == nil
                                     ? nil
                                     : priceStore.freshness(for: holding.listing)

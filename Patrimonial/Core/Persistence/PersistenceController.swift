@@ -12,7 +12,9 @@ enum PersistenceController {
             PortfolioSnapshot.self,
             FXRateCache.self,
             CoinGeckoCache.self,
-            CandleCache.self
+            CandleCache.self,
+            Debt.self,
+            DebtPayment.self
         ])
 
         let configuration = ModelConfiguration(

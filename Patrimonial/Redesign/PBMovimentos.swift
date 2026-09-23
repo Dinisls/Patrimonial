@@ -43,6 +43,8 @@ struct AccountsListScreen: View {
                 .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 16)
 
+                DebtsAccountsEntry()
+
                 Button { showNewAccount = true } label: {
                     Text("Adicionar conta")
                         .font(.system(size: 16, weight: .semibold))
@@ -71,6 +73,8 @@ struct AccountsListScreen: View {
             case .account(let id): AccountScreen(id: id)
             case .cashflow: CashflowScreen()
             case .newAccount: AccountFormSheet()
+            case .debts: DebtsScreen()
+            case .debt(let id): DebtDetailScreen(debtID: id)
             }
         }
         .sheet(isPresented: $showNewAccount) {
@@ -259,7 +263,9 @@ struct AccountScreen: View {
                     Button("Apagar", role: .destructive) {
                         do {
                             try store.deleteAccountWithEverything(id: id)
+
                         } catch {
+
                             deleteError = error.localizedDescription
                         }
                     }
@@ -326,6 +332,7 @@ struct AccountScreen: View {
                 let available = isRangeAvailable(r)
                 let selected = effectiveRange == r
                 Button {
+
                     withAnimation(.easeInOut(duration: 0.2)) { range = r }
                 } label: {
                     Text(r)
@@ -535,7 +542,12 @@ struct TransactionsListScreen: View {
         var txs = store.transactions
         if !query.isEmpty {
             let q = query.lowercased()
-            txs = txs.filter { $0.title.lowercased().contains(q) || $0.account.lowercased().contains(q) }
+            txs = txs.filter {
+                $0.title.lowercased().contains(q)
+                || $0.account.lowercased().contains(q)
+                || $0.date.contains(q)
+                || Fmt.eur(abs($0.amount)).lowercased().contains(q)
+            }
         }
         switch filter {
         case "Despesas": txs = txs.filter { $0.amount < 0 && $0.cat != .transfer }
@@ -571,24 +583,29 @@ struct TransactionsListScreen: View {
             VStack(spacing: 0) {
                 searchBar
                 filterChips
-                ForEach(Array(grouped.enumerated()), id: \.offset) { _, group in
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(group.label.uppercased())
-                            .font(.system(size: 12.5, weight: .semibold))
-                            .tracking(0.5)
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 20)
-                            .padding(.top, 16)
+                if filtered.isEmpty {
+                    ContentUnavailableView.search(text: query.isEmpty ? filter : query)
+                        .padding(.top, 40)
+                } else {
+                    ForEach(Array(grouped.enumerated()), id: \.offset) { _, group in
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(group.label.uppercased())
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .tracking(0.5)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 20)
+                                .padding(.top, 16)
 
-                        VStack(spacing: 0) {
-                            ForEach(Array(group.items.enumerated()), id: \.element.id) { i, tx in
-                                Button { editTx = tx } label: { TxListRow(tx: tx) }
-                                    .buttonStyle(.plain)
-                                if i < group.items.count - 1 { Divider().padding(.leading, 62) }
+                            VStack(spacing: 0) {
+                                ForEach(Array(group.items.enumerated()), id: \.element.id) { i, tx in
+                                    Button { editTx = tx } label: { TxListRow(tx: tx) }
+                                        .buttonStyle(.plain)
+                                    if i < group.items.count - 1 { Divider().padding(.leading, 62) }
+                                }
                             }
+                            .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal, 16)
                         }
-                        .background(Color(UIColor.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 12))
-                        .padding(.horizontal, 16)
                     }
                 }
                 Spacer(minLength: 100)
@@ -625,6 +642,7 @@ struct TransactionsListScreen: View {
             HStack(spacing: 8) {
                 ForEach(filters, id: \.self) { f in
                     Button {
+    
                         withAnimation(.easeInOut(duration: 0.15)) { filter = f }
                     } label: {
                         Text(f)

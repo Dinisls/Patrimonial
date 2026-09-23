@@ -8,6 +8,11 @@ enum PBRoute: Hashable {
     case cashflow
     case account(String)
     case newAccount
+    case debts
+    /// By id, never by the model object: a `NavigationPath` outlives the row it
+    /// points at, and a deleted debt carried in the path would keep a dead
+    /// object on screen.
+    case debt(UUID)
 }
 
 // MARK: - Linha de transação (estilo iOS grouped list)

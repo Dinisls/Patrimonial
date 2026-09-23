@@ -1,15 +1,6 @@
 import SwiftUI
 import SwiftData
 
-private extension View {
-    func pbFormChrome(_ title: String) -> some View {
-        self.scrollContentBackground(.hidden)
-            .background(PB.bg.ignoresSafeArea())
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
 struct AddPositionSheet: View {
     /// Opens the sheet on a position the user is already looking at.
     ///

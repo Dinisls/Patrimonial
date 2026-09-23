@@ -20,6 +20,7 @@ struct DashboardScreen: View {
                 heroSection
                 accountCardsSection
                 cashflowCard
+                DebtsSummaryCard(hidden: hidden)
                 recentTransactions
                 Spacer(minLength: 100)
             }
@@ -73,6 +74,8 @@ struct DashboardScreen: View {
             case .account(let id): AccountScreen(id: id)
             case .cashflow: CashflowScreen()
             case .newAccount: AccountFormSheet()
+            case .debts: DebtsScreen()
+            case .debt(let id): DebtDetailScreen(debtID: id)
             }
         }
     }

@@ -3,10 +3,12 @@
 // ───────────────────────────────────────────────────────────
 import SwiftUI
 import SwiftData
+import StoreKit
 import UniformTypeIdentifiers
 
 struct PBRootView: View {
     @AppStorage("appTheme") private var appTheme = "system"
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     @Environment(\.modelContext) private var modelContext
     @State private var store = AppStore()
     /// Owned here rather than by `PortfolioScreen`, which is where it used to
@@ -28,6 +30,7 @@ struct PBRootView: View {
     @State private var showNewAccount = false
     @Environment(\.deepLink) private var deepLink
     @State private var recapData: MonthlyRecap?
+    private let network = NetworkMonitor.shared
 
     private var colorScheme: ColorScheme? {
         switch appTheme { case "light": .light; case "dark": .dark; default: nil }
@@ -68,6 +71,16 @@ struct PBRootView: View {
                 }
             }
 
+            if !network.isConnected {
+                VStack {
+                    OfflineBanner()
+                    Spacer()
+                }
+                .ignoresSafeArea(edges: .horizontal)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: network.isConnected)
+            }
+
             if showQuickMenu {
                 QuickMenuOverlay(
                     isPresented: $showQuickMenu,
@@ -77,6 +90,7 @@ struct PBRootView: View {
                     showNewAccount: $showNewAccount
                 )
             }
+
         }
         .environment(store)
         .environment(priceStore)
@@ -88,7 +102,11 @@ struct PBRootView: View {
             ListingBackfill.backfillFXRateDirection(in: modelContext)
             store.bind(modelContext)
             PBDebug.seedEditSheetRows(into: store)
-            publishCashToWidget()
+            publishPortfolioToWidget()
+            Task {
+                DebtReminders.requestPermission()
+                DebtReminders.scheduleAll(in: modelContext)
+            }
             if let due = MonthlyRecapSchedule.due(store: store) {
                 recapData = MonthlyRecap.build(month: due.month, year: due.year,
                                                store: store, context: modelContext)
@@ -127,10 +145,18 @@ struct PBRootView: View {
         .sheet(isPresented: $showNewAccount) {
             AccountFormSheet().environment(store)
         }
+        .fullScreenCover(isPresented: Binding(
+            get: { !hasSeenOnboarding },
+            set: { if !$0 { hasSeenOnboarding = true } }
+        )) {
+            OnboardingView()
+        }
     }
 
-    private func publishCashToWidget() {
-        WidgetDataBridge.publishCash(from: modelContext)
+    /// Cash publishes itself from `AppStore.reload()`, which `store.bind`
+    /// above has just run. The portfolio does not — see `publishPortfolio`.
+    private func publishPortfolioToWidget() {
+        WidgetDataBridge.publishPortfolio(from: modelContext, priceStore: priceStore)
     }
 
     private func showPreviousMonthRecap() {
@@ -209,6 +235,7 @@ struct SettingsScreen: View {
     @AppStorage("appTheme") private var appTheme = "system"
     @Environment(AppStore.self) private var store
     @Environment(PriceStore.self) private var priceStore
+    @Environment(\.requestReview) private var requestReview
 
     /// Two flags, two alerts, and no way to reach the second without having read
     /// the first. A single destructive tap on an irreversible action is not a
@@ -252,6 +279,18 @@ struct SettingsScreen: View {
             Section("Dados") {
                 LabeledContent("Contas") { Text("\(store.accounts.count)") }
                 LabeledContent("Transações") { Text("\(store.transactions.count)") }
+            }
+
+            Section("Sobre") {
+                LabeledContent("Versão") {
+                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
+                        .foregroundStyle(.secondary)
+                }
+                Button {
+                    requestReview()
+                } label: {
+                    Label("Avaliar na App Store", systemImage: "star")
+                }
             }
 
             backupSection
@@ -392,7 +431,10 @@ struct SettingsScreen: View {
         do {
             let result = try DataBackup.restore(from: data, into: ctx)
             store.reload()
-            WidgetDataBridge.publishCash(from: ctx)
+            // An import replaces the positions too, so the portfolio half of
+            // the widget is as stale as the cash half; `reload()` only covers
+            // the latter.
+            WidgetDataBridge.publishPortfolio(from: ctx, priceStore: priceStore)
             importResult = """
             Importados com sucesso:
             • \(result.accounts) contas
@@ -400,6 +442,7 @@ struct SettingsScreen: View {
             • \(result.assets) ativos
             • \(result.customCategories) categorias
             • \(result.portfolioSnapshots) dias de histórico
+            • \(result.debts) dívidas
             """
         } catch {
             importError = "Erro ao importar: \(error.localizedDescription)"
@@ -413,7 +456,8 @@ struct SettingsScreen: View {
         guard let ctx = store.modelContext else {
             return DataReset.Inventory(
                 accounts: 0, transactions: 0, positions: 0,
-                customCategories: 0, portfolioSnapshots: 0, watchlisted: 0
+                customCategories: 0, portfolioSnapshots: 0, watchlisted: 0,
+                debts: 0
             )
         }
         return DataReset.inventory(in: ctx)
@@ -432,6 +476,9 @@ struct SettingsScreen: View {
         ]
         if inventory.customCategories > 0 {
             lines.append("• \(inventory.customCategories) \(plural(inventory.customCategories, "categoria", "categorias")) personalizadas")
+        }
+        if inventory.debts > 0 {
+            lines.append("• \(inventory.debts) \(plural(inventory.debts, "dívida por liquidar", "dívidas por liquidar"))")
         }
         if inventory.watchlisted > 0 {
             lines.append("• \(inventory.watchlisted) \(plural(inventory.watchlisted, "título seguido", "títulos seguidos"))")

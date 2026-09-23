@@ -56,6 +56,27 @@ struct PositionRowLayoutTests {
         return h
     }
 
+    /// A row as the screen builds it. The period figure is part of the row's
+    /// width now, so every layout case has to carry one — a row rendered with
+    /// `nil` would be measuring a dash where the app shows `+12,34%`.
+    private func row(
+        _ holding: Holding,
+        privacyMode: Bool = false,
+        change: PortfolioViewModel.PeriodChange? = PortfolioViewModel.PeriodChange(
+            eur: 12.34, percent: 3.42
+        ),
+        period: String = "1D",
+        freshness: QuoteFreshness?
+    ) -> PositionRowView {
+        PositionRowView(
+            holding: holding,
+            privacyMode: privacyMode,
+            periodChange: change,
+            periodLabel: period,
+            freshness: freshness
+        )
+    }
+
     private func render(_ view: some View, screenWidth: CGFloat, to name: String) -> UIImage? {
         // The card sits inside `.padding(.horizontal, 16)` on the screen; the row
         // adds its own 16 on each side. Reproduced here so the width the row is
@@ -97,16 +118,26 @@ struct PositionRowLayoutTests {
     }
 
     /// Width the price column wants, the same way.
-    private func trailingIdealWidth(value: String, pct: String, native: String) -> CGFloat {
+    /// Width the price column wants, the same way.
+    ///
+    /// `period` is the new part: the percentage no longer sits alone on its
+    /// line, it sits after a monospaced interval tag with a 4 pt gap, and a
+    /// measurement that ignores the tag understates the column by exactly the
+    /// amount that decides whether the subtitle truncates.
+    private func trailingIdealWidth(
+        value: String, period: String, pct: String, native: String
+    ) -> CGFloat {
         func w(_ s: String, _ size: CGFloat, _ weight: UIFont.Weight, mono: Bool = false) -> CGFloat {
             let font = mono
                 ? UIFont.monospacedSystemFont(ofSize: size, weight: weight)
                 : UIFont.systemFont(ofSize: size, weight: weight)
             return (s as NSString).size(withAttributes: [.font: font]).width
         }
+        let periodLine = w(period, 10, .semibold, mono: true) + 4
+            + w(pct, 12, .semibold, mono: true)
         return max(
             w(value, 16, .semibold),
-            w(pct, 12, .semibold, mono: true),
+            periodLine,
             w(native, 10, .regular)
         )
     }
@@ -119,15 +150,14 @@ struct PositionRowLayoutTests {
     /// obtainable while the market trades — and on the reported screen the
     /// second was read as the first.
     @Test func theTwoGreysAreDrawnDifferently() {
-        let closed = PositionRowView(
-            holding: holding(symbol: "HBM", mic: "XNYS", currency: "EUR"),
-            privacyMode: false, freshness: .closed
+        let closed = row(
+            holding(symbol: "HBM", mic: "XNYS", currency: "EUR"),
+            freshness: .closed
         )
         #expect(render(closed, screenWidth: 402, to: "grey-closed") != nil)
 
-        let settled = PositionRowView(
-            holding: holding(symbol: "NVD", mic: "XETR", currency: "EUR"),
-            privacyMode: false,
+        let settled = row(
+            holding(symbol: "NVD", mic: "XETR", currency: "EUR"),
             freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
         )
         #expect(render(settled, screenWidth: 402, to: "grey-dailyclose") != nil)
@@ -150,7 +180,11 @@ struct PositionRowLayoutTests {
 
         let left = subtitleIdealWidth(subtitle)
         let right = trailingIdealWidth(
-            value: "48,31 €", pct: "+0,92%", native: "27,86 USD × 0,8669"
+            // "YTD" is the widest tag the picker can produce, so it is the one
+            // the layout has to survive — measuring "1D" would pass a test the
+            // app then fails the moment the user taps YTD.
+            value: "48,31 €", period: "YTD", pct: "+0,92%",
+            native: "27,86 USD × 0,8669"
         )
 
         #expect(
@@ -172,23 +206,18 @@ struct PositionRowLayoutTests {
         let ceiling: CGFloat = 72
 
         for (label, view) in [
-            ("live", PositionRowView(
-                holding: holding(), privacyMode: false, freshness: .delayed(15)
-            )),
-            ("close", PositionRowView(
-                holding: holding(symbol: "NVD", mic: "XETR", currency: "EUR"),
-                privacyMode: false,
+            ("live", row(holding(), period: "YTD", freshness: .delayed(15))),
+            ("close", row(
+                holding(symbol: "NVD", mic: "XETR", currency: "EUR"),
+                period: "YTD",
                 // A close from the current year, which is the only kind that reaches
                 // this row in practice — the label drops the year for those, and
                 // testing the longer form would flatter the layout.
                 freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
             )),
-            ("long", PositionRowView(
-                holding: holding(account: "Conta Investimentos DEGIRO"),
-                privacyMode: false,
-                // A close from the current year, which is the only kind that reaches
-                // this row in practice — the label drops the year for those, and
-                // testing the longer form would flatter the layout.
+            ("long", row(
+                holding(account: "Conta Investimentos DEGIRO"),
+                period: "YTD",
                 freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
             ))
         ] {
@@ -210,28 +239,18 @@ struct PositionRowLayoutTests {
     func rendersAtEveryWidth(index: Int) {
         let (name, screen) = Self.deviceWidths[index]
 
-        let live = PositionRowView(
-            holding: holding(), privacyMode: false, freshness: .delayed(15)
-        )
+        let live = row(holding(), freshness: .delayed(15))
         #expect(render(live, screenWidth: screen, to: "\(name)-live") != nil)
 
-        let close = PositionRowView(
-            holding: holding(symbol: "NVD", mic: "XETR", currency: "EUR"),
-            privacyMode: false,
-            // A close from the current year, which is the only kind that reaches
-                // this row in practice — the label drops the year for those, and
-                // testing the longer form would flatter the layout.
-                freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
+        let close = row(
+            holding(symbol: "NVD", mic: "XETR", currency: "EUR"),
+            freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
         )
         #expect(render(close, screenWidth: screen, to: "\(name)-close") != nil)
 
-        let longAccount = PositionRowView(
-            holding: holding(account: "Conta Investimentos DEGIRO"),
-            privacyMode: false,
-            // A close from the current year, which is the only kind that reaches
-                // this row in practice — the label drops the year for those, and
-                // testing the longer form would flatter the layout.
-                freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
+        let longAccount = row(
+            holding(account: "Conta Investimentos DEGIRO"),
+            freshness: .dailyClose(Date().addingTimeInterval(-3 * 86_400))
         )
         #expect(render(longAccount, screenWidth: screen, to: "\(name)-long") != nil)
     }

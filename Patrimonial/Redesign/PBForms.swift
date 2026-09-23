@@ -3,7 +3,10 @@
 // ───────────────────────────────────────────────────────────
 import SwiftUI
 
-private extension View {
+// Internal rather than fileprivate since the debt sheets were added: the
+// chrome is what makes a sheet look like the app's other sheets, and a second
+// copy of it in another file is a second thing to keep in step.
+extension View {
     func pbFormChrome(_ title: String) -> some View {
         self.scrollContentBackground(.hidden)
             .background(PB.bg.ignoresSafeArea())
@@ -88,7 +91,7 @@ struct CategoryChipPicker: View {
     }
 
     private func chip(symbol: String, name: String, isSelected: Bool, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { action() } label: {
             VStack(spacing: 5) {
                 Image(systemName: symbol)
                     .font(.system(size: 17, weight: isSelected ? .semibold : .regular))
@@ -222,8 +225,10 @@ struct CategoryFormSheet: View {
             if let created = store.customCategories.last(where: { $0.name == trimmed }) {
                 onCreated(created)
             }
+
             dismiss()
         } catch {
+
             saveFailed = true
         }
     }
@@ -356,8 +361,10 @@ struct TransactionFormSheet: View {
                 recurrenceDay: recurrence != .none ? recurrenceDay : nil,
                 recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
             )
+
             dismiss()
         } catch {
+
             saveFailed = true
         }
     }
@@ -523,8 +530,10 @@ struct TransactionEditSheet: View {
                 guard let id = tx.txID else { dismiss(); return }
                 do {
                     try store.deleteTransaction(id: id)
+
                     dismiss()
                 } catch {
+        
                     saveFailed = true
                 }
             }
@@ -623,8 +632,10 @@ struct TransactionEditSheet: View {
                     recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
                 )
             }
+
             dismiss()
         } catch {
+
             saveFailed = true
         }
     }
@@ -705,8 +716,10 @@ struct TransferFormSheet: View {
         do {
             try store.addTransfer(fromAccount: fromAccount, toAccount: toAccount,
                                   amount: d(amount), note: note, date: f.string(from: date))
+
             dismiss()
         } catch {
+
             saveFailed = true
         }
     }
@@ -758,8 +771,10 @@ struct AccountFormSheet: View {
                                                  sub: sub.isEmpty ? "Conta" : sub,
                                                  kind: .cash, colorHex: colorHex,
                                                  initialBalance: Double(balance.replacingOccurrences(of: ",", with: ".")) ?? 0)
+                
                             dismiss()
                         } catch {
+                
                             saveFailed = true
                         }
                     }.disabled(!canSave).fontWeight(.semibold)
@@ -828,8 +843,10 @@ struct AccountEditSheet: View {
                                 colorHex: colorHex,
                                 balance: Double(balance.replacingOccurrences(of: ",", with: ".")) ?? account.balance
                             )
+                
                             dismiss()
                         } catch {
+                
                             saveFailed = true
                         }
                     }.disabled(!canSave).fontWeight(.semibold)

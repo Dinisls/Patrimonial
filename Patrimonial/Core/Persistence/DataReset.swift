@@ -34,10 +34,15 @@ enum DataReset {
         /// amount of re-entry brings back.
         let portfolioSnapshots: Int
         let watchlisted: Int
+        /// Open debts, in either direction. Settled ones are not counted: what
+        /// the confirmation has to name is what the user still has, and a debt
+        /// already paid off is history, not a holding.
+        let debts: Int
 
         var isEmpty: Bool {
             accounts == 0 && transactions == 0 && positions == 0
                 && customCategories == 0 && portfolioSnapshots == 0 && watchlisted == 0
+                && debts == 0
         }
     }
 
@@ -58,7 +63,8 @@ enum DataReset {
             positions: holdings.count(where: \.isOpen),
             customCategories: ((try? ctx.fetch(FetchDescriptor<CustomCategory>())) ?? []).count,
             portfolioSnapshots: ((try? ctx.fetch(FetchDescriptor<PortfolioSnapshot>())) ?? []).count,
-            watchlisted: assets.count(where: \.isWatchlisted)
+            watchlisted: assets.count(where: \.isWatchlisted),
+            debts: ((try? ctx.fetch(FetchDescriptor<Debt>())) ?? []).count(where: { !$0.isSettled })
         )
     }
 
@@ -90,6 +96,11 @@ enum DataReset {
         deleteAll(FXRateCache.self, in: ctx)
         deleteAll(CoinGeckoCache.self, in: ctx)
         deleteAll(CandleCache.self, in: ctx)
+        // Payments before debts: the cascade would take them anyway, but a
+        // payment row outliving its debt is exactly the ghost this function
+        // exists to prevent, and explicit order costs nothing.
+        deleteAll(DebtPayment.self, in: ctx)
+        deleteAll(Debt.self, in: ctx)
 
         try ctx.save()
 

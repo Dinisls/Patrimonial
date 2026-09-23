@@ -1,10 +1,24 @@
 import Foundation
 import SwiftData
+#if !WIDGET_EXTENSION
+import WidgetKit
+#endif
 
 enum WidgetDataBridge {
     static let appGroup = "group.pt.patrimonial.shared"
     private static let portfolioKey = "portfolioSummary"
     private static let cashKey = "cashSummary"
+
+    /// Writing to the App Group is only half a publish. WidgetKit does not
+    /// watch UserDefaults; without this the widget keeps serving the entry it
+    /// built last, and the next rebuild happens whenever the system feels like
+    /// honouring the timeline's refresh date — which is why the widgets sat on
+    /// values from a previous launch. Every write goes through here.
+    private static func reloadWidgets() {
+        #if !WIDGET_EXTENSION
+        WidgetCenter.shared.reloadAllTimelines()
+        #endif
+    }
 
     // MARK: - Portfolio
 
@@ -38,6 +52,7 @@ enum WidgetDataBridge {
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(summary) else { return }
         defaults.set(data, forKey: portfolioKey)
+        reloadWidgets()
     }
 
     static func readPortfolio() -> PortfolioSummary? {
@@ -77,6 +92,7 @@ enum WidgetDataBridge {
         encoder.dateEncodingStrategy = .iso8601
         guard let data = try? encoder.encode(summary) else { return }
         defaults.set(data, forKey: cashKey)
+        reloadWidgets()
     }
 
     static func readCash() -> CashSummary? {
@@ -93,6 +109,7 @@ enum WidgetDataBridge {
         guard let defaults = UserDefaults(suiteName: appGroup) else { return }
         defaults.removeObject(forKey: portfolioKey)
         defaults.removeObject(forKey: cashKey)
+        reloadWidgets()
     }
 
     // MARK: - Publish from ModelContext (app target only)
@@ -136,6 +153,32 @@ enum WidgetDataBridge {
             monthIncome: Decimal(receita), monthExpenses: Decimal(despesas),
             accounts: entries, updatedAt: Date()
         ))
+    }
+
+    /// The portfolio is otherwise published only by
+    /// `PortfolioViewModel.loadHoldings`, which runs while the Investimentos
+    /// tab is on screen. A user who does not open that tab left the widget
+    /// serving whatever the last visit wrote, sometimes days old.
+    ///
+    /// This is not a live valuation — no quote is fetched here. It is the
+    /// cached one, hydrated on the same terms `PortfolioScreen` uses, which is
+    /// what the app itself shows before its first poll answers. The two have to
+    /// agree, which is why `referenceClose` is wired the same way; without it
+    /// hydration accepts quotes the screen would reject and the widget and the
+    /// app would disagree about the same instant.
+    @MainActor
+    static func publishPortfolio(from ctx: ModelContext, priceStore: PriceStore) {
+        priceStore.configureLive(modelContext: ctx)
+        let candles = CandleStore()
+        candles.bind(modelContext: ctx)
+        priceStore.referenceClose = { listing in
+            candles.series(for: listing).last?.close
+        }
+        priceStore.hydrateFromCache()
+
+        let vm = PortfolioViewModel()
+        vm.bind(modelContext: ctx, priceStore: priceStore)
+        vm.loadHoldings()
     }
     #endif
 }
