@@ -59,11 +59,11 @@ struct PBRootView: View {
                     NavigationStack { PortfolioScreen() }
                 }
             }
-            .onChange(of: selectedTab) { _, newVal in
+            .onChange(of: selectedTab) { oldVal, newVal in
                 if newVal == 2 {
                     selectedTab = 0
                     showQuickMenu = true
-                } else {
+                } else if oldVal == 4 {
                     // Investment transactions are written by PortfolioViewModel
                     // through a separate context, so this store's caches go stale
                     // without a refresh on the way back.
