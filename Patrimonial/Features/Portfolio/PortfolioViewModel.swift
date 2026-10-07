@@ -361,7 +361,12 @@ final class PortfolioViewModel {
         case .assetSale:
             totalEUR = totalNative * fxRate - commission
         case .dividend:
-            totalEUR = totalNative * fxRate - commission
+            // Shares × per-share, where per-share was the amount ÷ shares;
+            // rounding to the cent recovers the amount actually credited.
+            var raw = totalNative * fxRate - commission
+            var rounded = Decimal()
+            NSDecimalRound(&rounded, &raw, 2, .plain)
+            totalEUR = rounded
         default:
             return
         }
@@ -393,7 +398,8 @@ final class PortfolioViewModel {
         tx.assetQuantity = quantity
         tx.assetUnitPrice = unitPrice
         tx.assetFXRate = fxRate
-        tx.assetFXRateFrom = asset?.currency ?? "EUR"
+        // A dividend is entered as the euros credited, so its rate is EUR → EUR.
+        tx.assetFXRateFrom = type == .dividend ? "EUR" : (asset?.currency ?? "EUR")
         tx.assetFXRateTo = "EUR"
         tx.commission = commission
 

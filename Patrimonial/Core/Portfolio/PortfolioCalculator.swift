@@ -214,8 +214,9 @@ struct PortfolioCalculator {
                 }
 
             case .dividend:
-                let dividendEUR = tx.quantity * tx.unitPrice * tx.fxRate - tx.commission
-                dividendsReceived += dividendEUR
+                // The stored euros, not shares × per-share: the per-share figure
+                // is a division and does not multiply back to the cent.
+                dividendsReceived += tx.amountEUR
 
             case .expense, .income, .transfer:
                 break

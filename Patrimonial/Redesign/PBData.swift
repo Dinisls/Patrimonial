@@ -78,6 +78,7 @@ struct PBTx: Identifiable {
     // .expense while leaving them behind — the position vanished from the
     // portfolio and the row became neither an expense nor a holding.
     var assetSymbol: String? = nil
+    var isDividend: Bool = false
     var assetQuantity: Decimal? = nil
     var assetUnitPrice: Decimal? = nil
     var assetFXRate: Decimal? = nil

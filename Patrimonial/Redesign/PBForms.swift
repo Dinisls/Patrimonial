@@ -557,17 +557,28 @@ struct TransactionEditSheet: View {
             if let symbol = tx.assetSymbol {
                 LabeledContent("Ativo") { Text(symbol).foregroundStyle(PB.text2) }
             }
-            if let qty = tx.assetQuantity {
-                LabeledContent("Quantidade") { Text(Self.qtyText(qty)).foregroundStyle(PB.text2) }
-            }
-            if let price = tx.assetUnitPrice {
-                LabeledContent("Preço unitário") {
-                    Text(Self.decimalText(price) + (tx.assetCurrency.map { " \($0)" } ?? ""))
-                        .foregroundStyle(PB.text2)
+            if tx.isDividend {
+                if let qty = tx.assetQuantity {
+                    LabeledContent("Ações detidas") { Text(Self.qtyText(qty)).foregroundStyle(PB.text2) }
                 }
-            }
-            if let fx = tx.assetFXRate {
-                LabeledContent("Câmbio → EUR") { Text(Self.decimalText(fx, dp: 6)).foregroundStyle(PB.text2) }
+                if let perShare = tx.assetUnitPrice {
+                    LabeledContent("Por ação") {
+                        Text(AddPositionSheet.perShareText(perShare)).foregroundStyle(PB.text2)
+                    }
+                }
+            } else {
+                if let qty = tx.assetQuantity {
+                    LabeledContent("Quantidade") { Text(Self.qtyText(qty)).foregroundStyle(PB.text2) }
+                }
+                if let price = tx.assetUnitPrice {
+                    LabeledContent("Preço unitário") {
+                        Text(Self.decimalText(price) + (tx.assetCurrency.map { " \($0)" } ?? ""))
+                            .foregroundStyle(PB.text2)
+                    }
+                }
+                if let fx = tx.assetFXRate {
+                    LabeledContent("Câmbio → EUR") { Text(Self.decimalText(fx, dp: 6)).foregroundStyle(PB.text2) }
+                }
             }
             if let commission = tx.assetCommission, commission != 0 {
                 LabeledContent("Comissão") { Text(Fmt.eur(Double(truncating: commission as NSNumber))).foregroundStyle(PB.text2) }

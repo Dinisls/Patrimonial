@@ -55,6 +55,8 @@ struct AddPositionSheet: View {
     @State private var fxIsAutomatic = true
     @State private var fxLoading = false
     @State private var commissionStr = "0"
+    @State private var dividendAmountStr = ""
+    @State private var dividendSharesStr = ""
     @State private var note = ""
     @State private var date = Date()
     @State private var selectedAccountID: UUID?
@@ -97,17 +99,44 @@ struct AddPositionSheet: View {
         selectedAsset == nil && !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    // A dividend is entered as the net euros credited and the shares held; it is
+    // stored as shares × (amount ÷ shares) at rate 1 with no commission, so the
+    // transaction can show what each share paid.
+    private var isDividend: Bool { txType == .dividend }
+
+    private static func parse(_ s: String) -> Decimal? {
+        Decimal(string: s.replacingOccurrences(of: ",", with: "."))
+    }
+
+    private var dividendAmount: Decimal? { Self.parse(dividendAmountStr) }
+
     private var quantity: Decimal? {
-        Decimal(string: quantityStr.replacingOccurrences(of: ",", with: "."))
+        Self.parse(isDividend ? dividendSharesStr : quantityStr)
     }
     private var unitPrice: Decimal? {
-        Decimal(string: unitPriceStr.replacingOccurrences(of: ",", with: "."))
+        guard isDividend else { return Self.parse(unitPriceStr) }
+        guard let amount = dividendAmount, let shares = quantity, shares > 0 else { return nil }
+        return amount / shares
+    }
+
+    /// Shares of this listing held in the chosen account, the default for a
+    /// dividend. Nil when the account holds none.
+    private var sharesHeldInSelectedAccount: Decimal? {
+        guard let listing = resolvedListing, let account = selectedAccount else { return nil }
+        return viewModel.perAccountHoldings.first {
+            $0.listing == listing && $0.accountID == account.id.uuidString && $0.isOpen
+        }?.quantity
+    }
+
+    private func prefillDividendShares() {
+        guard isDividend, let held = sharesHeldInSelectedAccount else { return }
+        dividendSharesStr = Self.editableDecimal(held)
     }
     private var fxRate: Decimal? {
-        Decimal(string: fxRateStr.replacingOccurrences(of: ",", with: "."))
+        isDividend ? 1 : Decimal(string: fxRateStr.replacingOccurrences(of: ",", with: "."))
     }
     private var commission: Decimal {
-        Decimal(string: commissionStr.replacingOccurrences(of: ",", with: ".")) ?? 0
+        isDividend ? 0 : Decimal(string: commissionStr.replacingOccurrences(of: ",", with: ".")) ?? 0
     }
 
     private var canSave: Bool {
@@ -147,7 +176,7 @@ struct AddPositionSheet: View {
                 typeSection
                 tickerSection
                 detailsSection
-                fxSection
+                if !isDividend { fxSection }
                 accountSection
                 previewSection
 
@@ -192,7 +221,11 @@ struct AddPositionSheet: View {
                let cgID = prefill.asset.coingeckoID {
                 viewModel.registerCryptoAsset(symbol: prefill.asset.symbol, coinGeckoID: cgID)
             }
+            prefillDividendShares()
         }
+        .onChange(of: txType) { _, _ in prefillDividendShares() }
+        .onChange(of: selectedAccountID) { _, _ in prefillDividendShares() }
+        .onChange(of: selectedAsset?.id) { _, _ in prefillDividendShares() }
         .onChange(of: date) { _, _ in
             if let asset = selectedAsset, asset.currency != "EUR", fxIsAutomatic {
                 fetchFXRate(currency: asset.currency)
@@ -337,29 +370,53 @@ struct AddPositionSheet: View {
 
     private var detailsSection: some View {
         Section("Detalhes") {
-            HStack {
-                Text(txType == .dividend ? "Montante" : "Quantidade")
-                Spacer()
-                TextField("0", text: $quantityStr)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-            }
-            HStack {
-                Text(txType == .dividend ? "Preço/unidade" : "Preço unitário")
-                Spacer()
-                TextField("0,00", text: $unitPriceStr)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                if let asset = selectedAsset {
-                    Text(asset.currency).foregroundStyle(PB.text3)
+            if isDividend {
+                HStack {
+                    Text("Valor recebido (€)")
+                    Spacer()
+                    TextField("0,00", text: $dividendAmountStr)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
                 }
-            }
-            HStack {
-                Text("Comissão (€)")
-                Spacer()
-                TextField("0", text: $commissionStr)
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
+                HStack {
+                    Text("Ações detidas")
+                    Spacer()
+                    TextField("0", text: $dividendSharesStr)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                if let perShare = unitPrice {
+                    LabeledContent("Por ação") {
+                        Text(Self.perShareText(perShare))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                }
+            } else {
+                HStack {
+                    Text("Quantidade")
+                    Spacer()
+                    TextField("0", text: $quantityStr)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
+                HStack {
+                    Text("Preço unitário")
+                    Spacer()
+                    TextField("0,00", text: $unitPriceStr)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                    if let asset = selectedAsset {
+                        Text(asset.currency).foregroundStyle(PB.text3)
+                    }
+                }
+                HStack {
+                    Text("Comissão (€)")
+                    Spacer()
+                    TextField("0", text: $commissionStr)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                }
             }
             DatePicker("Data", selection: $date, in: ...Date(), displayedComponents: .date)
             TextField("Nota (opcional)", text: $note)
@@ -530,6 +587,17 @@ struct AddPositionSheet: View {
         f.minimumFractionDigits = 0
         f.maximumFractionDigits = 8
         return f.string(from: value as NSDecimalNumber) ?? ""
+    }
+
+    /// Per-share dividends are often fractions of a cent, so up to four places.
+    static func perShareText(_ value: Decimal) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "EUR"
+        f.locale = Locale(identifier: "pt_PT")
+        f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 4
+        return f.string(from: value as NSDecimalNumber) ?? "—"
     }
 
     private func formatDecimalEUR(_ value: Decimal) -> String {

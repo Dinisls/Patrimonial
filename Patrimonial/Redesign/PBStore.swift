@@ -178,9 +178,10 @@ final class AppStore {
                 result.append(inTx)
             } else {
                 let signed: Double
+                // Same sign the balance uses: money in for a sale or a dividend.
                 switch tx.type {
-                case .income: signed = amount
-                default: signed = -amount
+                case .income, .assetSale, .dividend: signed = amount
+                case .expense, .assetPurchase, .transfer: signed = -amount
                 }
                 let cat = mapCategory(tx.category, type: tx.type)
                 idx += 1
@@ -193,6 +194,7 @@ final class AppStore {
                 )
                 if let symbol = tx.assetSymbol {
                     pbTx.assetSymbol = symbol
+                    pbTx.isDividend = tx.type == .dividend
                     pbTx.assetQuantity = tx.assetQuantity
                     pbTx.assetUnitPrice = tx.assetUnitPrice
                     pbTx.assetFXRate = tx.assetFXRate
