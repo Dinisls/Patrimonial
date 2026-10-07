@@ -138,6 +138,7 @@ struct PortfolioScreen: View {
                 PortfolioSnapshotRecorder.record(
                     holdings: viewModel.holdings, accounts: allAccounts, in: modelContext
                 )
+                await candleStore.refreshAll(listings: openListings, priceStore: priceStore)
             }
         }
         .alert(

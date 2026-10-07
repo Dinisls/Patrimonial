@@ -32,6 +32,22 @@ final class CandleStore {
         case unitedStates(symbol: String)
         case european(symbol: String)
         case crypto(coinID: String)
+
+        static func resolve(listing: ListingID, priceStore: PriceStore) -> Route? {
+            if let coinID = priceStore.coinGeckoID(for: listing.symbol) {
+                return .crypto(coinID: coinID)
+            }
+            guard let mic = listing.mic,
+                  let exchange = MarketCalendar.exchangeForMIC(mic)
+            else { return nil }
+
+            if exchange.isEuropean {
+                guard let suffix = exchange.alphaVantageSuffix else { return nil }
+                let sym = listing.symbol
+                return .european(symbol: sym.hasSuffix(suffix) ? sym : sym + suffix)
+            }
+            return .unitedStates(symbol: listing.symbol)
+        }
     }
 
     private(set) var isLoading = false
@@ -248,6 +264,18 @@ final class CandleStore {
         case .unitedStates: "twelvedata"
         case .european: "alphavantage"
         case .crypto: "coingecko"
+        }
+    }
+
+    /// Refreshes candles for every listing that has a route and a gap in its
+    /// cache. Called from the portfolio screen so period-change percentages
+    /// are available without opening each asset's detail first.
+    func refreshAll(listings: Set<ListingID>, priceStore: PriceStore) async {
+        for listing in listings {
+            guard let route = Route.resolve(listing: listing, priceStore: priceStore),
+                  earliestMissingDate(for: listing, range: .oneWeek) != nil
+            else { continue }
+            await refresh(listing: listing, route: route, range: .oneWeek)
         }
     }
 }

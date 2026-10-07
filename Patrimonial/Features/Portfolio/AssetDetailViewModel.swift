@@ -111,18 +111,7 @@ final class AssetDetailViewModel {
     /// is the agreed trade: Yahoo is not a history source.
     var route: CandleStore.Route? {
         guard let priceStore else { return nil }
-
-        if let coinID = priceStore.coinGeckoID(for: symbol) {
-            return .crypto(coinID: coinID)
-        }
-        guard let mic = listing.mic, let exchange = MarketCalendar.exchangeForMIC(mic)
-        else { return nil }
-
-        if exchange.isEuropean {
-            guard let suffix = exchange.alphaVantageSuffix else { return nil }
-            return .european(symbol: symbol.hasSuffix(suffix) ? symbol : symbol + suffix)
-        }
-        return .unitedStates(symbol: symbol)
+        return CandleStore.Route.resolve(listing: listing, priceStore: priceStore)
     }
 
     /// True when this asset has no history source at all, so the screen can say
