@@ -97,6 +97,7 @@ struct PBRootView: View {
         .preferredColorScheme(colorScheme)
         .tint(PB.accent)
         .onAppear {
+            ListingBackfill.cleanMisattributedCandles(in: modelContext)
             ListingBackfill.run(in: modelContext)
             ListingBackfill.normalizeCryptoMICs(in: modelContext)
             ListingBackfill.backfillFXRateDirection(in: modelContext)

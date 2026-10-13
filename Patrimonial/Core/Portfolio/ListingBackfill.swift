@@ -96,6 +96,11 @@ struct ListingBackfill {
         if let candles = try? ctx.fetch(FetchDescriptor<CandleCache>()) {
             for candle in candles where candle.mic == nil {
                 guard let mic = venues[ListingID(symbol: candle.symbol).symbol] else { continue }
+                // A US-sourced candle stamped with a non-US venue is a different
+                // instrument — the backfill assumption (one ticker, one venue)
+                // does not extend across provider boundaries.
+                if Self.isUSOnlySource(candle.source)
+                    && !MarketCalendar.isUnitedStatesMIC(mic) { continue }
                 candle.mic = mic
                 report.candles += 1
             }
@@ -142,6 +147,8 @@ struct ListingBackfill {
         if let candles = try? ctx.fetch(FetchDescriptor<CandleCache>()) {
             for candle in candles
             where candle.mic == nil && ListingID(symbol: candle.symbol).symbol == listing.symbol {
+                if Self.isUSOnlySource(candle.source)
+                    && !MarketCalendar.isUnitedStatesMIC(venue) { continue }
                 candle.mic = venue
                 adopted += 1
             }
@@ -285,5 +292,32 @@ struct ListingBackfill {
             guard let txSymbol = tx.assetSymbol else { return false }
             return ListingID(symbol: txSymbol).symbol == wanted && tx.assetMIC == nil
         }
+    }
+
+    // MARK: - Misattributed candle cleanup
+
+    private static let usOnlySources: Set<String> = ["twelvedata", "finnhub"]
+
+    static func isUSOnlySource(_ source: String) -> Bool {
+        usOnlySources.contains(source.lowercased())
+    }
+
+    /// Deletes candles that a US-only provider wrote but the backfill stamped
+    /// with a non-US venue. Those candles are a different instrument's history
+    /// wearing the wrong listing.
+    @discardableResult
+    static func cleanMisattributedCandles(in ctx: ModelContext) -> Int {
+        guard let candles = try? ctx.fetch(FetchDescriptor<CandleCache>()) else { return 0 }
+        var deleted = 0
+        for candle in candles {
+            guard let mic = candle.mic,
+                  !MarketCalendar.isUnitedStatesMIC(mic),
+                  isUSOnlySource(candle.source)
+            else { continue }
+            ctx.delete(candle)
+            deleted += 1
+        }
+        if deleted > 0 { try? ctx.save() }
+        return deleted
     }
 }
