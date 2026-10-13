@@ -368,7 +368,8 @@ final class AppStore {
         let cal = Calendar.current
         var receita = 0.0, despesas = 0.0
         for t in transactions {
-            guard let d = Self.parseDate(t.date) else { continue }
+            guard t.cat != .transfer,
+                  let d = Self.parseDate(t.date) else { continue }
             if cal.component(.month, from: d) == m && cal.component(.year, from: d) == y {
                 if t.amount > 0 { receita += t.amount } else { despesas += -t.amount }
             }
@@ -450,7 +451,8 @@ final class AppStore {
         let cal = Calendar.current
         return transactions
             .filter { tx in
-                guard let d = Self.parseDate(tx.date) else { return false }
+                guard tx.cat != .transfer,
+                      let d = Self.parseDate(tx.date) else { return false }
                 return cal.component(.month, from: d) == m && cal.component(.year, from: d) == y
             }
             .sorted { abs($0.amount) > abs($1.amount) }

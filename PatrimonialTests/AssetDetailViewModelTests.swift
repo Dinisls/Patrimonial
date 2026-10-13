@@ -231,6 +231,7 @@ struct AssetDetailViewModelTests {
         let candleStore = CandleStore(
             usProvider: RecordingCandleProvider(),
             europeanProvider: RecordingCandleProvider(),
+            yahooProvider: RecordingCandleProvider(),
             cryptoProvider: RecordingCandleProvider(),
             now: { [today] in today }
         )
@@ -239,10 +240,9 @@ struct AssetDetailViewModelTests {
         let vm = AssetDetailViewModel(listing: ListingID(symbol: "QDVE", mic: "XFRA"), accountID: "")
         vm.bind(modelContext: ctx, priceStore: priceStore, candleStore: candleStore, portfolio: portfolio)
 
-        // Frankfurt has no history provider — Yahoo is quotes only.
-        #expect(vm.route == nil)
-        #expect(vm.hasNoHistoryProvider)
-        #expect(!vm.showsChart)
+        // Frankfurt now routes through Yahoo for history.
+        #expect(vm.route == .yahoo(symbol: "QDVE.F"))
+        #expect(!vm.hasNoHistoryProvider)
         // And the position figures still work.
         #expect(vm.quantity == 5)
         #expect(vm.totalCostEUR == 220)

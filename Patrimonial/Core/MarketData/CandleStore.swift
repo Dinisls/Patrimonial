@@ -25,28 +25,32 @@ final class CandleStore {
     /// Which provider can serve a symbol's history, and under what name.
     ///
     /// Resolved from the recorded MIC by the caller, never from a ticker
-    /// suffix — the same rule the quote path learned the hard way. Yahoo is
-    /// deliberately absent: it is a quote source only, so the venues only it
-    /// reaches simply have no chart.
+    /// suffix — the same rule the quote path learned the hard way.
     enum Route: Equatable {
         case unitedStates(symbol: String)
         case european(symbol: String)
+        case yahoo(symbol: String)
         case crypto(coinID: String)
 
         static func resolve(listing: ListingID, priceStore: PriceStore) -> Route? {
             if let coinID = priceStore.coinGeckoID(for: listing.symbol) {
                 return .crypto(coinID: coinID)
             }
-            guard let mic = listing.mic,
-                  let exchange = MarketCalendar.exchangeForMIC(mic)
-            else { return nil }
+            guard let mic = listing.mic else { return nil }
 
-            if exchange.isEuropean {
-                guard let suffix = exchange.alphaVantageSuffix else { return nil }
-                let sym = listing.symbol
-                return .european(symbol: sym.hasSuffix(suffix) ? sym : sym + suffix)
+            if let exchange = MarketCalendar.exchangeForMIC(mic) {
+                if exchange.isEuropean {
+                    guard let suffix = exchange.alphaVantageSuffix else { return nil }
+                    let sym = listing.symbol
+                    return .european(symbol: sym.hasSuffix(suffix) ? sym : sym + suffix)
+                }
+                return .unitedStates(symbol: listing.symbol)
             }
-            return .unitedStates(symbol: listing.symbol)
+
+            if let yahooSym = MarketCalendar.yahooSymbol(listing.symbol, mic: mic) {
+                return .yahoo(symbol: yahooSym)
+            }
+            return nil
         }
     }
 
@@ -55,6 +59,7 @@ final class CandleStore {
     private var modelContext: ModelContext?
     private let usProvider: any MarketDataProvider
     private let europeanProvider: (any MarketDataProvider)?
+    private let yahooProvider: any MarketDataProvider
     private let cryptoProvider: any MarketDataProvider
     private let now: @Sendable () -> Date
 
@@ -62,6 +67,7 @@ final class CandleStore {
     /// shared limiter would let a crypto chart starve an equity one.
     private let usLimiter = RateLimiter(maxTokens: 8, refillInterval: 60)
     private let europeanLimiter = RateLimiter(maxTokens: 5, refillInterval: 60)
+    private let yahooLimiter = RateLimiter(maxTokens: 5, refillInterval: 60)
     private let cryptoLimiter = RateLimiter(maxTokens: 10, refillInterval: 60)
 
     /// Symbols with a refresh in flight, so a re-entrant view update cannot
@@ -71,11 +77,13 @@ final class CandleStore {
     init(
         usProvider: any MarketDataProvider = TwelveDataProvider(),
         europeanProvider: (any MarketDataProvider)? = AlphaVantageProvider(),
+        yahooProvider: any MarketDataProvider = YahooChartProvider(),
         cryptoProvider: any MarketDataProvider = CoinGeckoProvider(),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.usProvider = usProvider
         self.europeanProvider = europeanProvider
+        self.yahooProvider = yahooProvider
         self.cryptoProvider = cryptoProvider
         self.now = now
     }
@@ -164,6 +172,12 @@ final class CandleStore {
             // The budget refuses inside the provider once the quote reserve is
             // all that is left, and a refusal arrives here as an empty result.
             fetched = (try? await europeanProvider.candles(
+                symbol: providerSymbol, range: rangeCovering(since)
+            )) ?? []
+
+        case .yahoo(let providerSymbol):
+            guard await yahooLimiter.tryAcquire() else { return }
+            fetched = (try? await yahooProvider.candles(
                 symbol: providerSymbol, range: rangeCovering(since)
             )) ?? []
 
@@ -263,6 +277,7 @@ final class CandleStore {
         switch route {
         case .unitedStates: "twelvedata"
         case .european: "alphavantage"
+        case .yahoo: "yahoo"
         case .crypto: "coingecko"
         }
     }
