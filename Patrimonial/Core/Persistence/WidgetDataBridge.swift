@@ -136,8 +136,7 @@ enum WidgetDataBridge {
             case .income:
                 receita += amount
             case .transfer:
-                receita += amount
-                despesas += amount
+                break
             default:
                 despesas += amount
             }
