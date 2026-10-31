@@ -10,6 +10,9 @@ final class CustomCategory {
     var isExpense: Bool
     var isIncome: Bool
     var createdAt: Date
+    // Optional so existing stores open without a migration; nil sorts last by createdAt.
+    var expenseOrder: Int? = nil
+    var incomeOrder: Int? = nil
 
     init(name: String, symbol: String, colorHex: String, isExpense: Bool, isIncome: Bool) {
         self.id = UUID()

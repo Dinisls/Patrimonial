@@ -529,6 +529,11 @@ struct CategoriesManagementScreen: View {
     @Environment(AppStore.self) private var store
     @State private var showAdd = false
     @State private var saveFailed = false
+    @State private var editingCat: PBCustomCategory? = nil
+    @State private var editMode: EditMode = .inactive
+
+    private var expenseCats: [PBCustomCategory] { store.orderedCustomCategories(income: false) }
+    private var incomeCats: [PBCustomCategory] { store.orderedCustomCategories(income: true) }
 
     var body: some View {
         List {
@@ -536,42 +541,84 @@ struct CategoriesManagementScreen: View {
                 ContentUnavailableView("Sem categorias", systemImage: "tag.slash",
                                        description: Text("Toca em + para criar a primeira."))
             } else {
-                ForEach(store.customCategories) { cat in
-                    HStack(spacing: 14) {
-                        Image(systemName: cat.symbol)
-                            .font(.system(size: 17))
-                            .foregroundStyle(cat.color)
-                            .frame(width: 34, height: 34)
-                            .background(cat.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 9))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(cat.name).font(.system(size: 16, weight: .medium))
-                            Text(cat.isExpense && cat.isIncome ? "Despesa & Receita" : cat.isExpense ? "Despesa" : "Receita")
-                                .font(.system(size: 12)).foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .onDelete { idx in
-                    do {
-                        for i in idx { try store.deleteCustomCategory(id: store.customCategories[i].id) }
-                    } catch {
-                        saveFailed = true
-                    }
-                }
+                section("Despesas", cats: expenseCats, income: false)
+                section("Receitas", cats: incomeCats, income: true)
             }
+        }
+        .environment(\.editMode, $editMode)
+        .sheet(item: $editingCat) { cat in
+            CategoryFormSheet(isIncome: cat.isIncome && !cat.isExpense, editing: cat)
+                .environment(store)
         }
         .navigationTitle("Categorias")
         .alert("Não foi possível guardar", isPresented: $saveFailed) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("A categoria não foi apagada. Tenta novamente.")
+            Text("A alteração não foi guardada. Tenta novamente.")
         }
         .toolbar {
+            if !store.customCategories.isEmpty {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(editMode.isEditing ? "OK" : "Ordenar") {
+                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                    }
+                    .fontWeight(editMode.isEditing ? .semibold : .regular)
+                }
+            }
             ToolbarItem(placement: .primaryAction) {
                 Button { showAdd = true } label: { Image(systemName: "plus") }
+                    .disabled(editMode.isEditing)
             }
         }
         .sheet(isPresented: $showAdd) {
             CategoryFormSheet(isIncome: false).environment(store)
+        }
+    }
+
+    @ViewBuilder
+    private func section(_ title: String, cats: [PBCustomCategory], income: Bool) -> some View {
+        Section(title) {
+            if cats.isEmpty {
+                Text("Sem categorias de \(title.lowercased()).")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(cats) { cat in
+                    row(cat)
+                }
+                .onMove { source, destination in
+                    do { try store.moveCustomCategories(income: income, from: source, to: destination) }
+                    catch { saveFailed = true }
+                }
+            }
+        }
+    }
+
+    private func row(_ cat: PBCustomCategory) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: cat.symbol)
+                .font(.system(size: 17))
+                .foregroundStyle(cat.color)
+                .frame(width: 34, height: 34)
+                .background(cat.color.opacity(0.16), in: RoundedRectangle(cornerRadius: 9))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(cat.name).font(.system(size: 16, weight: .medium))
+                if cat.isExpense && cat.isIncome {
+                    Text("Despesa & Receita")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                do { try store.deleteCustomCategory(id: cat.id) } catch { saveFailed = true }
+            } label: {
+                Label("Apagar", systemImage: "trash")
+            }
+            Button { editingCat = cat } label: {
+                Label("Editar", systemImage: "pencil")
+            }
+            .tint(.orange)
         }
     }
 }

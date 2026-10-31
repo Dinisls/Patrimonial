@@ -2,6 +2,7 @@
 // PBForms.swift — Sheets para adicionar transações, transferências, contas
 // ───────────────────────────────────────────────────────────
 import SwiftUI
+import PhotosUI
 
 // Internal rather than fileprivate since the debt sheets were added: the
 // chrome is what makes a sheet look like the app's other sheets, and a second
@@ -44,40 +45,42 @@ struct CategoryChipPicker: View {
         isIncome ? [.income, .work] : [.food, .transport, .work, .other]
     }
     private var customCats: [PBCustomCategory] {
-        store.customCategories.filter { isIncome ? $0.isIncome : $0.isExpense }
+        store.orderedCustomCategories(income: isIncome)
     }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(builtinCats, id: \.self) { cat in
-                    chip(symbol: Icon.catSymbol(cat), name: builtinLabel(cat),
-                         isSelected: selection == .builtin(cat), color: builtinColor(cat)) {
-                        selection = .builtin(cat)
+        VStack(alignment: .leading, spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(builtinCats, id: \.self) { cat in
+                        chip(symbol: Icon.catSymbol(cat), name: builtinLabel(cat),
+                             isSelected: selection == .builtin(cat), color: builtinColor(cat)) {
+                            selection = .builtin(cat)
+                        }
                     }
-                }
-                ForEach(customCats) { cat in
-                    chip(symbol: cat.symbol, name: cat.name,
-                         isSelected: selection == .custom(cat.id), color: cat.color) {
-                        selection = .custom(cat.id)
+                    ForEach(customCats) { cat in
+                        chip(symbol: cat.symbol, name: cat.name,
+                             isSelected: selection == .custom(cat.id), color: cat.color) {
+                            selection = .custom(cat.id)
+                        }
                     }
-                }
-                Button { showAddCat = true } label: {
-                    VStack(spacing: 5) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(PB.text3)
-                            .frame(width: 42, height: 42)
-                            .background(PB.surface2, in: Circle())
-                        Text("Nova")
-                            .font(PB.sans(10, .medium))
-                            .foregroundStyle(PB.text3)
+                    Button { showAddCat = true } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(PB.text3)
+                                .frame(width: 42, height: 42)
+                                .background(PB.surface2, in: Circle())
+                            Text("Nova")
+                                .font(PB.sans(10, .medium))
+                                .foregroundStyle(PB.text3)
+                        }
                     }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 2)
+                .padding(.vertical, 6)
             }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 6)
         }
         .sheet(isPresented: $showAddCat) {
             CategoryFormSheet(isIncome: isIncome) { newCat in
@@ -131,14 +134,17 @@ struct CategoryFormSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let initialIsIncome: Bool
+    var editing: PBCustomCategory? = nil
     var onCreated: (PBCustomCategory) -> Void = { _ in }
+    var onDeleted: (() -> Void)? = nil
 
-    @State private var name = ""
-    @State private var symbol = "tag"
-    @State private var colorHex: UInt = 0x3F7BE0
+    @State private var name: String
+    @State private var symbol: String
+    @State private var colorHex: UInt
     @State private var isExpense: Bool
     @State private var isIncome: Bool
     @State private var saveFailed = false
+    @State private var showDeleteConfirm = false
 
     private let symbols = [
         "tag", "cart", "star", "heart", "house", "car", "airplane", "gift",
@@ -146,16 +152,41 @@ struct CategoryFormSheet: View {
         "suitcase", "cup.and.saucer", "pills", "stethoscope", "banknote", "creditcard",
         "phone", "wifi", "bolt", "drop", "leaf", "pawprint", "bicycle", "bag"
     ]
-    private let palette: [UInt] = [
+    private let basePalette: [UInt] = [
         0xE0563C, 0xD9A24A, 0x2FA86E, 0x3F7BE0, 0x8A6FD0, 0xD45C92,
         0x2196F3, 0x00BCD4, 0xFF9800, 0x795548
     ]
+    private let extendedPalette: [UInt] = [
+        0xE0563C, 0xD9A24A, 0x2FA86E, 0x3F7BE0, 0x8A6FD0, 0xD45C92,
+        0x2196F3, 0x00BCD4, 0xFF9800, 0x795548,
+        0xF44336, 0xE91E63, 0x9C27B0, 0x673AB7, 0x3F51B5,
+        0x03A9F4, 0x009688, 0x4CAF50, 0x8BC34A, 0xCDDC39,
+        0xFFC107, 0xFF5722, 0x607D8B, 0x9E9E9E, 0x455A64
+    ]
 
-    init(isIncome: Bool, onCreated: @escaping (PBCustomCategory) -> Void = { _ in }) {
+    private var isEditing: Bool { editing != nil }
+    private var palette: [UInt] { isEditing ? extendedPalette : basePalette }
+
+    init(isIncome: Bool, editing: PBCustomCategory? = nil,
+         onCreated: @escaping (PBCustomCategory) -> Void = { _ in },
+         onDeleted: (() -> Void)? = nil) {
         self.initialIsIncome = isIncome
+        self.editing = editing
         self.onCreated = onCreated
-        _isExpense = State(initialValue: !isIncome)
-        _isIncome = State(initialValue: isIncome)
+        self.onDeleted = onDeleted
+        if let cat = editing {
+            _name = State(initialValue: cat.name)
+            _symbol = State(initialValue: cat.symbol)
+            _colorHex = State(initialValue: cat.colorHex)
+            _isExpense = State(initialValue: cat.isExpense)
+            _isIncome = State(initialValue: cat.isIncome)
+        } else {
+            _name = State(initialValue: "")
+            _symbol = State(initialValue: "tag")
+            _colorHex = State(initialValue: 0x3F7BE0)
+            _isExpense = State(initialValue: !isIncome)
+            _isIncome = State(initialValue: isIncome)
+        }
     }
 
     private var canSave: Bool {
@@ -204,31 +235,56 @@ struct CategoryFormSheet: View {
                     Toggle("Despesa", isOn: $isExpense)
                     Toggle("Receita", isOn: $isIncome)
                 }
+                if isEditing {
+                    Section {
+                        Button(role: .destructive) { showDeleteConfirm = true } label: {
+                            HStack { Spacer(); Text("Apagar Categoria"); Spacer() }
+                        }
+                    }
+                }
             }
-            .pbFormChrome("Nova Categoria")
+            .pbFormChrome(isEditing ? "Editar Categoria" : "Nova Categoria")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Criar") { save() }.disabled(!canSave).fontWeight(.semibold)
+                    Button(isEditing ? "Guardar" : "Criar") { save() }
+                        .disabled(!canSave).fontWeight(.semibold)
                 }
             }
         }
         .tint(PB.accent)
         .pbSaveErrorAlert($saveFailed)
+        .confirmationDialog("Apagar esta categoria?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+            Button("Apagar", role: .destructive) { deleteCategory() }
+        }
     }
 
     private func save() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         do {
-            try store.addCustomCategory(name: trimmed, symbol: symbol, colorHex: colorHex,
-                                        isExpense: isExpense, isIncome: isIncome)
-            if let created = store.customCategories.last(where: { $0.name == trimmed }) {
-                onCreated(created)
+            if let cat = editing {
+                try store.updateCustomCategory(id: cat.id, name: trimmed, symbol: symbol,
+                                               colorHex: colorHex, isExpense: isExpense, isIncome: isIncome)
+            } else {
+                try store.addCustomCategory(name: trimmed, symbol: symbol, colorHex: colorHex,
+                                            isExpense: isExpense, isIncome: isIncome)
+                if let created = store.customCategories.last(where: { $0.name == trimmed }) {
+                    onCreated(created)
+                }
             }
-
             dismiss()
         } catch {
+            saveFailed = true
+        }
+    }
 
+    private func deleteCategory() {
+        guard let cat = editing else { return }
+        do {
+            try store.deleteCustomCategory(id: cat.id)
+            onDeleted?()
+            dismiss()
+        } catch {
             saveFailed = true
         }
     }
@@ -250,6 +306,7 @@ struct TransactionFormSheet: View {
     @State private var recurrence: Recurrence = .none
     @State private var recurrenceDay: Int = 1
     @State private var recurrenceDay2: Int = 15
+    @State private var attachmentFileNames: [String] = []
     @State private var saveFailed = false
 
     init(prefilledAccount: String? = nil, initialIsIncome: Bool = false) {
@@ -318,6 +375,7 @@ struct TransactionFormSheet: View {
                     CategoryChipPicker(isIncome: isIncome, selection: $catSelection)
                         .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                 }
+                AttachmentsSectionView(fileNames: $attachmentFileNames)
             }
             .pbFormChrome(isIncome ? "Nova Receita" : "Nova Despesa")
             .toolbar {
@@ -359,7 +417,8 @@ struct TransactionFormSheet: View {
                 account: account, date: dateString(date),
                 recurrence: recurrence,
                 recurrenceDay: recurrence != .none ? recurrenceDay : nil,
-                recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
+                recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil,
+                attachmentFileNames: AttachmentStore.encode(attachmentFileNames)
             )
 
             dismiss()
@@ -397,6 +456,7 @@ struct TransactionEditSheet: View {
     @State private var recurrenceDay: Int
     @State private var recurrenceDay2: Int
     @State private var showDeleteConfirm = false
+    @State private var attachmentFileNames: [String]
     @State private var saveFailed = false
 
     private var amountValue: Double { Self.parseAmountField(amount) ?? 0 }
@@ -422,6 +482,7 @@ struct TransactionEditSheet: View {
         _recurrence = State(initialValue: tx.recurrence)
         _recurrenceDay = State(initialValue: tx.recurrenceDay ?? Calendar.current.component(.day, from: parsedDate))
         _recurrenceDay2 = State(initialValue: tx.recurrenceDay2 ?? 15)
+        _attachmentFileNames = State(initialValue: AttachmentStore.decode(tx.attachmentFileNames))
     }
 
     var body: some View {
@@ -435,6 +496,7 @@ struct TransactionEditSheet: View {
                         if let sub = tx.sub { LabeledContent("Direção") { Text(sub).foregroundStyle(PB.text2) } }
                         DatePicker("Data", selection: $date, displayedComponents: .date)
                     }
+                    AttachmentsSectionView(fileNames: $attachmentFileNames)
                 } else {
                     Section {
                         Picker("Tipo", selection: $isIncome) {
@@ -490,6 +552,7 @@ struct TransactionEditSheet: View {
                         CategoryChipPicker(isIncome: isIncome, selection: $catSelection)
                             .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
                     }
+                    AttachmentsSectionView(fileNames: $attachmentFileNames)
                 }
                 Section {
                     Button(role: .destructive) { showDeleteConfirm = true } label: {
@@ -587,6 +650,7 @@ struct TransactionEditSheet: View {
             LabeledContent("Conta") { Text(tx.account).foregroundStyle(PB.text2) }
             LabeledContent("Data") { Text(tx.date).foregroundStyle(PB.text2) }
         }
+        AttachmentsSectionView(fileNames: $attachmentFileNames)
         Section {
             Text("As operações de investimento editam-se no separador Investimentos. Aqui só podem ser consultadas ou apagadas — este ecrã não tem campos para símbolo, quantidade, preço ou câmbio, e gravar por aqui apagaria a posição.")
                 .font(.system(size: 12.5))
@@ -629,7 +693,8 @@ struct TransactionEditSheet: View {
         if tx.isInvestment { dismiss(); return }
         do {
             if tx.cat == .transfer {
-                try store.updateTransactionMeta(id: id, account: account, date: dateString(date))
+                try store.updateTransactionMeta(id: id, account: account, date: dateString(date),
+                                                attachmentFileNames: AttachmentStore.encode(attachmentFileNames))
             } else {
                 let (cat, customID) = resolvedCategory()
                 try store.updateTransaction(
@@ -640,7 +705,8 @@ struct TransactionEditSheet: View {
                     account: account, date: dateString(date),
                     recurrence: recurrence,
                     recurrenceDay: recurrence != .none ? recurrenceDay : nil,
-                    recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil
+                    recurrenceDay2: recurrence == .bimonthly ? recurrenceDay2 : nil,
+                    attachmentFileNames: AttachmentStore.encode(attachmentFileNames)
                 )
             }
 
@@ -675,6 +741,7 @@ struct TransferFormSheet: View {
     @State private var amount = ""
     @State private var note = ""
     @State private var date = Date()
+    @State private var attachmentFileNames: [String] = []
     @State private var saveFailed = false
 
     private func d(_ s: String) -> Double { Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0 }
@@ -705,6 +772,7 @@ struct TransferFormSheet: View {
                     TextField("Nota (opcional)", text: $note)
                     DatePicker("Data", selection: $date, displayedComponents: .date)
                 }
+                AttachmentsSectionView(fileNames: $attachmentFileNames)
             }
             .pbFormChrome("Transferência")
             .toolbar {
@@ -726,7 +794,8 @@ struct TransferFormSheet: View {
         let f = DateFormatter(); f.locale = Locale(identifier: "pt_PT"); f.dateFormat = "d/M/yyyy"
         do {
             try store.addTransfer(fromAccount: fromAccount, toAccount: toAccount,
-                                  amount: d(amount), note: note, date: f.string(from: date))
+                                  amount: d(amount), note: note, date: f.string(from: date),
+                                  attachmentFileNames: AttachmentStore.encode(attachmentFileNames))
 
             dismiss()
         } catch {

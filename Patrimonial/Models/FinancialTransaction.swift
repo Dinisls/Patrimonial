@@ -115,6 +115,10 @@ final class FinancialTransaction {
     var assetFXRateTo: String? = nil
     var commission: Decimal? = nil
 
+    /// JSON-encoded array of attachment file names (UUID strings).
+    /// Images live in Documents/Attachments/ as JPEG files.
+    var attachmentFileNames: String? = nil
+
     var sourceAccount: Account?
     var destinationAccount: Account?
 

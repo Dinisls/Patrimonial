@@ -86,6 +86,7 @@ struct PBTx: Identifiable {
     var assetFXRateTo: String? = nil
     var assetCommission: Decimal? = nil
     var assetCurrency: String? = nil
+    var attachmentFileNames: String? = nil
 
     var isInvestment: Bool { assetSymbol != nil }
 }
@@ -128,6 +129,8 @@ struct PBCustomCategory: Identifiable {
     let colorHex: UInt
     var isExpense: Bool
     var isIncome: Bool
+    var expenseOrder: Int? = nil
+    var incomeOrder: Int? = nil
     var color: Color { Color(hex: colorHex) }
 }
 

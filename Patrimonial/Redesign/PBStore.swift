@@ -58,9 +58,34 @@ final class AppStore {
                 symbol: c.symbol,
                 colorHex: hexStringToUInt(c.colorHex),
                 isExpense: c.isExpense,
-                isIncome: c.isIncome
+                isIncome: c.isIncome,
+                expenseOrder: c.expenseOrder,
+                incomeOrder: c.incomeOrder
             )
         }
+    }
+
+    /// Categories of one kind in the user's order; never-reordered ones go last,
+    /// oldest first (customCategories is already sorted by createdAt).
+    func orderedCustomCategories(income: Bool) -> [PBCustomCategory] {
+        let kind = customCategories.filter { income ? $0.isIncome : $0.isExpense }
+        return kind.enumerated().sorted { a, b in
+            let oa = (income ? a.element.incomeOrder : a.element.expenseOrder) ?? Int.max
+            let ob = (income ? b.element.incomeOrder : b.element.expenseOrder) ?? Int.max
+            return oa != ob ? oa < ob : a.offset < b.offset
+        }.map(\.element)
+    }
+
+    func moveCustomCategories(income: Bool, from source: IndexSet, to destination: Int) throws {
+        guard let ctx else { return }
+        var ids = orderedCustomCategories(income: income).map(\.id)
+        ids.move(fromOffsets: source, toOffset: destination)
+        let all = (try? ctx.fetch(FetchDescriptor<CustomCategory>())) ?? []
+        for (index, id) in ids.enumerated() {
+            guard let cat = all.first(where: { $0.id.uuidString == id }) else { continue }
+            if income { cat.incomeOrder = index } else { cat.expenseOrder = index }
+        }
+        try save()
     }
 
     func addCustomCategory(name: String, symbol: String, colorHex: UInt, isExpense: Bool, isIncome: Bool) throws {
@@ -73,6 +98,19 @@ final class AppStore {
             isIncome: isIncome
         )
         ctx.insert(cat)
+        try save()
+    }
+
+    func updateCustomCategory(id: String, name: String, symbol: String, colorHex: UInt,
+                              isExpense: Bool, isIncome: Bool) throws {
+        guard let ctx, let uuid = UUID(uuidString: id) else { return }
+        let descriptor = FetchDescriptor<CustomCategory>(predicate: #Predicate { $0.id == uuid })
+        guard let cat = try? ctx.fetch(descriptor).first else { return }
+        cat.name = name
+        cat.symbol = symbol
+        cat.colorHex = uintToHexString(colorHex)
+        cat.isExpense = isExpense
+        cat.isIncome = isIncome
         try save()
     }
 
@@ -168,6 +206,7 @@ final class AppStore {
                                  cat: .transfer, account: srcName, date: dateStr, amount: -amount,
                                  recurrence: tx.recurrence, recurrenceDay: tx.recurrenceDay, recurrenceDay2: tx.recurrenceDay2)
                 if !dstName.isEmpty { outTx.sub = "→ \(dstName)" }
+                outTx.attachmentFileNames = tx.attachmentFileNames
                 result.append(outTx)
 
                 idx += 1
@@ -175,6 +214,7 @@ final class AppStore {
                                 cat: .transfer, account: dstName, date: dateStr, amount: amount,
                                 recurrence: tx.recurrence, recurrenceDay: tx.recurrenceDay, recurrenceDay2: tx.recurrenceDay2)
                 if !srcName.isEmpty { inTx.sub = "← \(srcName)" }
+                inTx.attachmentFileNames = tx.attachmentFileNames
                 result.append(inTx)
             } else {
                 let signed: Double
@@ -206,6 +246,7 @@ final class AppStore {
                         pbTx.sub = "\(formatQuantity(qty)) un"
                     }
                 }
+                pbTx.attachmentFileNames = tx.attachmentFileNames
                 if let customID = tx.customCategoryID,
                    let customCat = customCategories.first(where: { $0.id == customID }) {
                     pbTx.customCatID = customCat.id
@@ -609,7 +650,8 @@ final class AppStore {
                         category: TxCategory, customCatID: String? = nil,
                         account: String, date: String,
                         recurrence: Recurrence = .none,
-                        recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil) throws {
+                        recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil,
+                        attachmentFileNames: String? = nil) throws {
         guard let ctx, let acc = findAccount(named: account) else { return }
         let txType: TransactionType = isIncome ? .income : .expense
         let txCat = mapTxCatToTransactionCategory(category)
@@ -625,11 +667,13 @@ final class AppStore {
         tx.customCategoryID = customCatID
         tx.recurrenceDay = recurrenceDay
         tx.recurrenceDay2 = recurrenceDay2
+        tx.attachmentFileNames = attachmentFileNames
         ctx.insert(tx)
         try save()
     }
 
-    func addTransfer(fromAccount: String, toAccount: String, amount: Double, note: String, date: String) throws {
+    func addTransfer(fromAccount: String, toAccount: String, amount: Double, note: String, date: String,
+                     attachmentFileNames: String? = nil) throws {
         guard let ctx,
               let src = findAccount(named: fromAccount),
               let dst = findAccount(named: toAccount) else { return }
@@ -641,6 +685,7 @@ final class AppStore {
             sourceAccount: src,
             destinationAccount: dst
         )
+        tx.attachmentFileNames = attachmentFileNames
         ctx.insert(tx)
         try save()
     }
@@ -649,7 +694,8 @@ final class AppStore {
                            category: TxCategory, customCatID: String? = nil,
                            account: String, date: String,
                            recurrence: Recurrence = .none,
-                           recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil) throws {
+                           recurrenceDay: Int? = nil, recurrenceDay2: Int? = nil,
+                           attachmentFileNames: String? = nil) throws {
         guard let ctx else { return }
         let descriptor = FetchDescriptor<FinancialTransaction>(predicate: #Predicate { $0.id == id })
         guard let tx = try? ctx.fetch(descriptor).first else { return }
@@ -676,10 +722,12 @@ final class AppStore {
         tx.recurrenceDay2 = recurrenceDay2
         if let d = Self.parseDate(date) { tx.date = d }
         if let acc = findAccount(named: account) { tx.sourceAccount = acc }
+        tx.attachmentFileNames = attachmentFileNames
         try save()
     }
 
-    func updateTransactionMeta(id: UUID, account: String, date: String) throws {
+    func updateTransactionMeta(id: UUID, account: String, date: String,
+                               attachmentFileNames: String? = nil) throws {
         guard let ctx else { return }
         let descriptor = FetchDescriptor<FinancialTransaction>(predicate: #Predicate { $0.id == id })
         guard let tx = try? ctx.fetch(descriptor).first else { return }
@@ -688,6 +736,7 @@ final class AppStore {
         guard tx.assetSymbol == nil else { return }
         if let d = Self.parseDate(date) { tx.date = d }
         if let acc = findAccount(named: account) { tx.sourceAccount = acc }
+        tx.attachmentFileNames = attachmentFileNames
         try save()
     }
 

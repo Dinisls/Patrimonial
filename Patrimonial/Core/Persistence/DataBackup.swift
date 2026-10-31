@@ -89,6 +89,9 @@ enum DataBackup {
         var isExpense: Bool
         var isIncome: Bool
         var createdAt: Date
+        // Optional: backups exported before reordering existed lack these keys.
+        var expenseOrder: Int?
+        var incomeOrder: Int?
     }
 
     struct AssetDTO: Codable {
@@ -157,7 +160,8 @@ enum DataBackup {
                 CustomCategoryDTO(
                     id: c.id, name: c.name, symbol: c.symbol,
                     colorHex: c.colorHex, isExpense: c.isExpense,
-                    isIncome: c.isIncome, createdAt: c.createdAt
+                    isIncome: c.isIncome, createdAt: c.createdAt,
+                    expenseOrder: c.expenseOrder, incomeOrder: c.incomeOrder
                 )
             },
             assets: assets.map { a in
@@ -247,6 +251,8 @@ enum DataBackup {
             )
             cat.id = dto.id
             cat.createdAt = dto.createdAt
+            cat.expenseOrder = dto.expenseOrder
+            cat.incomeOrder = dto.incomeOrder
             ctx.insert(cat)
         }
 
